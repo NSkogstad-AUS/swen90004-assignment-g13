@@ -89,8 +89,8 @@ class TestBaselineAssignment(unittest.TestCase):
         model._assign_customers()
         self.assertEqual(model.stores[1].market_share, 1)
 
-    def test_tie_broken_by_lowest_store_id(self):
-        """When effective costs are equal the store with the lower id should win."""
+    def test_tie_broken_randomly(self):
+        """When effective costs are equal exactly one store wins (chosen at random)."""
         model = self._make_two_store_model()
         model.stores[0].position = 40.0
         model.stores[1].position = 60.0
@@ -100,9 +100,29 @@ class TestBaselineAssignment(unittest.TestCase):
             s.reset_metrics()
         model._assign_customers()
 
-        self.assertEqual(model.stores[0].market_share, 1,
-                         "store 0 should win tie because it has the lower id")
-        self.assertEqual(model.stores[1].market_share, 0)
+        total = model.stores[0].market_share + model.stores[1].market_share
+        self.assertEqual(total, 1, "exactly one store should win the tied customer")
+
+    def test_tie_broken_randomly_both_stores_win_over_many_trials(self):
+        """Random tie-breaking should assign tied customers to each store across runs."""
+        wins = {0: 0, 1: 0}
+        for seed in range(200):
+            model = HotellingModel(
+                market_size=100, num_customers=1, num_stores=2,
+                ticks=1, price=10.0, distance_weight=1.0, random_seed=seed,
+            )
+            model.stores[0].position = 40.0
+            model.stores[1].position = 60.0
+            model.customers[0].position = 50.0
+            for s in model.stores:
+                s.reset_metrics()
+            model._assign_customers()
+            for s in model.stores:
+                if s.market_share == 1:
+                    wins[s.id] += 1
+        # Both stores should win a meaningful fraction of tied assignments.
+        self.assertGreater(wins[0], 50, "store 0 should win some tied assignments")
+        self.assertGreater(wins[1], 50, "store 1 should win some tied assignments")
 
     def test_total_market_share_equals_num_customers(self):
         """Sum of all store market shares must equal num_customers every tick."""

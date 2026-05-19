@@ -19,16 +19,17 @@ class HotellingModel:
     Assumptions:
     - Customer positions are integer-valued, matching NetLogo's discrete patches.
     - Customer positions are fixed throughout a run.
-    - Stores update positions sequentially in id order (NetLogo uses simultaneous updates;
-      this is a documented difference between the implementations).
-    - Tie-breaking in customer assignment uses the lowest store id (NetLogo uses random
-      tie-breaking; this is a documented difference).
-    - The position lookahead uses the current prices; the price lookahead uses the updated
+    - Position and price updates are simultaneous: all stores compute their new
+      position/price before any store moves, matching the NetLogo task-based approach.
+    - Tie-breaking in customer assignment is random, matching NetLogo's min-one-of.
+    - The position lookahead uses current prices; the price lookahead uses the updated
       positions, matching the NetLogo tick order.
+    - A store with zero market share must move (status quo excluded from candidates),
+      matching NetLogo's "only consider status quo if area-count > 0" rule.
     - Loyalty applies only from the second tick onward (no previous_store_id on tick 0).
     - Loyalty is not applied during the store-optimisation lookahead.
-    - distance_weight = 1.0 by default to match the NetLogo model, which uses unweighted
-      Euclidean distance: effective_cost = price + distance.
+    - distance_weight = 1.0 by default, matching the NetLogo formula:
+      effective_cost = price + distance.
     """
 
     def __init__(
@@ -145,16 +146,16 @@ class HotellingModel:
 
     def _create_stores(self) -> List[Store]:
         """
-        Return stores at evenly spaced integer positions with the initial price.
+        Return stores at random integer positions, matching the NetLogo setup procedure.
 
-        All stores start with the same price (self.price); prices diverge dynamically.
-        NetLogo places stores at random consumer patches; we use evenly spaced positions
-        for determinism and reproducibility — this is a documented difference.
+        Each store is placed on a randomly chosen consumer patch (integer position in
+        [0, market_size]).  Multiple stores may share an initial position.  All stores
+        start with the same initial price; prices diverge dynamically each tick.
         """
         return [
             Store(
                 id=i,
-                position=round(float(self.market_size) * (i + 1) / (self.num_stores + 1)),
+                position=self._rng.randint(0, self.market_size),
                 price=self.price,
             )
             for i in range(self.num_stores)
@@ -251,18 +252,13 @@ class HotellingModel:
         """
         Return the store with the lowest effective cost for a customer.
 
-        Ties broken by lowest store id (deterministic).  No loyalty adjustment applied.
+        Matches NetLogo's min-one-of: when two or more stores tie on effective cost,
+        one of the tied stores is chosen at random using the seeded RNG.
+        No loyalty adjustment is applied.
         """
-        best_store: Optional[Store] = None
-        best_cost = float("inf")
-        for store in self.stores:
-            cost = self._effective_cost(customer, store)
-            if best_store is None or cost < best_cost or (
-                cost == best_cost and store.id < best_store.id
-            ):
-                best_cost = cost
-                best_store = store
-        return best_store  # type: ignore[return-value]
+        min_cost = min(self._effective_cost(customer, s) for s in self.stores)
+        tied = [s for s in self.stores if self._effective_cost(customer, s) == min_cost]
+        return self._rng.choice(tied)
 
     def _store_by_id(self, store_id: int) -> Optional[Store]:
         """Return the Store with the given id, or None if not found."""
@@ -291,33 +287,48 @@ class HotellingModel:
 
     def _update_store_positions(self) -> None:
         """
-        Move each store to the neighbouring position that maximises simulated revenue.
+        Move all stores simultaneously to their best neighbouring position.
 
-        Prices are held fixed during this step; only position varies.
-        Stores update sequentially in id order (NetLogo updates simultaneously — a
-        documented difference between the implementations).
+        Matches NetLogo's task-based simultaneous update: every store computes its new
+        position using the pre-move state of all stores, then all moves are applied at
+        once.  Prices are held fixed during this step.
         """
-        for store in self.stores:
-            store.position = self._best_position(store)
+        new_positions = [self._best_position(store) for store in self.stores]
+        for store, pos in zip(self.stores, new_positions):
+            store.position = pos
 
     def _best_position(self, store: Store) -> float:
         """
-        Return the position (left, stay, or right by step_size) with the highest
-        simulated revenue, holding the store's current price fixed.
+        Return the position with the highest simulated revenue, price held fixed.
 
-        Candidate positions are clamped to [0, market_size].  The current position
-        is preferred on ties, matching the NetLogo sort-by stability property.
+        Matches the NetLogo new-location-task logic:
+        - If the store had customers this tick (market_share > 0), the current position
+          is included and preferred on ties (NetLogo: fput patch-here possible-moves).
+        - If the store had zero customers, the current position is excluded; the store
+          must move (NetLogo: "only consider status quo if area-count > 0").  Direction
+          is chosen randomly on ties.
+        Candidates are clamped to [0, market_size].
         """
-        candidates = [
-            max(0, min(self.market_size, round(store.position - self.step_size))),
-            round(store.position),
-            max(0, min(self.market_size, round(store.position + self.step_size))),
-        ]
-        best_pos = round(store.position)
+        stay = round(store.position)
+        left = max(0, min(self.market_size, round(store.position - self.step_size)))
+        right = max(0, min(self.market_size, round(store.position + self.step_size)))
+
+        if store.market_share > 0:
+            # Status quo included; it wins ties (placed first, stable sort equivalent).
+            candidates = list(dict.fromkeys([stay, left, right]))  # deduplicate, keep order
+        else:
+            # Must move; shuffle so neither direction is favoured when they tie.
+            move_candidates = list({left, right} - {stay})
+            if not move_candidates:
+                move_candidates = [stay]  # at boundary with no room to move
+            self._rng.shuffle(move_candidates)
+            candidates = move_candidates
+
+        best_pos = stay
         best_rev = float("-inf")
         for pos in candidates:
             rev = self._simulated_revenue(store, pos, store.price)
-            if rev > best_rev or (rev == best_rev and pos == round(store.position)):
+            if rev > best_rev or (rev == best_rev and store.market_share > 0 and pos == stay):
                 best_rev = rev
                 best_pos = pos
         return best_pos
@@ -328,13 +339,15 @@ class HotellingModel:
 
     def _update_store_prices(self) -> None:
         """
-        Adjust each store's price to the level that maximises simulated revenue.
+        Adjust all stores' prices simultaneously to maximise simulated revenue.
 
-        Positions are fixed at their updated values from this tick's position step.
-        Stores update sequentially in id order.
+        Matches NetLogo's task-based simultaneous update: every store computes its new
+        price using the current prices of all competitors, then all changes are applied
+        at once.  Positions are fixed at the values set by _update_store_positions.
         """
-        for store in self.stores:
-            store.price = self._best_price(store)
+        new_prices = [self._best_price(store) for store in self.stores]
+        for store, price in zip(self.stores, new_prices):
+            store.price = price
 
     def _best_price(self, store: Store) -> float:
         """
@@ -380,8 +393,11 @@ class HotellingModel:
         Estimate the revenue moving_store would earn if at candidate_pos with candidate_price.
 
         All other stores remain at their current positions and prices.  Does not modify
-        any model state.  Loyalty is not applied; raw effective costs are used.
-        Tie-breaking follows the same lowest-id rule as regular assignment.
+        any model state.  Loyalty is not applied.
+
+        Tie-breaking is random (matching NetLogo's min-one-of behaviour), using the
+        seeded RNG.  This makes the lookahead stochastic but deterministic for a given
+        seed, correctly replicating the NetLogo potential-market-share procedure.
         """
         count = 0
         for customer in self.customers:
@@ -389,17 +405,17 @@ class HotellingModel:
                 candidate_price
                 + self.distance_weight * abs(customer.position - candidate_pos)
             )
-            chosen_id = moving_store.id
-            winning_cost = candidate_cost
+            # Collect (cost, store_id) for all stores, with moving_store at its candidate.
+            store_costs = [(candidate_cost, moving_store.id)]
             for store in self.stores:
-                if store.id == moving_store.id:
-                    continue
-                cost = self._effective_cost(customer, store)
-                if cost < winning_cost or (
-                    cost == winning_cost and store.id < chosen_id
-                ):
-                    winning_cost = cost
-                    chosen_id = store.id
+                if store.id != moving_store.id:
+                    store_costs.append((self._effective_cost(customer, store), store.id))
+
+            min_cost = min(c for c, _ in store_costs)
+            tied_ids = [sid for c, sid in store_costs if c == min_cost]
+            # Random choice among tied stores matches NetLogo's min-one-of.
+            chosen_id = self._rng.choice(tied_ids)
+
             if chosen_id == moving_store.id:
                 count += 1
         return count * candidate_price
