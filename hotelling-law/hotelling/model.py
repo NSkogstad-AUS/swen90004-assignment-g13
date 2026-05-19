@@ -33,7 +33,7 @@ class HotellingModel:
         ticks: int = 100,
         price: float = 10.0,
         distance_weight: float = 1.0,
-        step_size: float = 1.0,
+        step_size: float = 2.0,
         random_seed: Optional[int] = None,
         customer_distribution: str = "uniform",
         loyalty_strength: float = 0.0,
