@@ -1,4 +1,9 @@
-"""Unit tests for CSV output generation."""
+"""
+Tests for CSV output generation.
+
+Verifies that CSV files are created at the expected path, contain correct headers,
+have the right number of rows, and that numeric fields are parseable.
+"""
 
 import csv
 import os
@@ -8,12 +13,13 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from hotelling.csv_writer import HEADERS, write_csv
+from hotelling.csv_writer import RAW_HEADERS, SUMMARY_HEADERS, write_raw_csv, write_summary_csv
 from hotelling.experiment import Experiment
+from hotelling.statistics import generate_summary_rows
 
 
 def _small_experiment(experiment_name: str = "test") -> Experiment:
-    """Return a minimal Experiment suitable for fast tests."""
+    """Return a minimal Experiment for fast test runs (1 run, 3 ticks, 2 stores)."""
     return Experiment(
         experiment_name=experiment_name,
         num_runs=1,
@@ -22,94 +28,125 @@ def _small_experiment(experiment_name: str = "test") -> Experiment:
         num_customers=10,
         num_stores=2,
         ticks=3,
-        price=1.0,
+        price=10.0,
         distance_weight=1.0,
         loyalty_strength=0.0,
+        loyalty_threshold=10.0,
     )
 
 
-class TestCsvFileCreation(unittest.TestCase):
-    """Tests that write_csv creates a valid file."""
+class TestRawCsvCreation(unittest.TestCase):
+    """Tests that write_raw_csv creates a properly structured file."""
 
     def test_file_is_created(self):
-        """write_csv should create the output file at the specified path."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            path = os.path.join(tmpdir, "output.csv")
-            rows = _small_experiment().run()
-            write_csv(path, rows)
+        """write_raw_csv should create the file at the given path."""
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "raw.csv")
+            write_raw_csv(path, _small_experiment().run())
             self.assertTrue(os.path.exists(path))
 
-    def test_creates_parent_directories(self):
-        """write_csv should create intermediate directories if they do not exist."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            path = os.path.join(tmpdir, "nested", "dir", "output.csv")
-            rows = _small_experiment().run()
-            write_csv(path, rows)
+    def test_creates_nested_directories(self):
+        """write_raw_csv should create any missing parent directories."""
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "a", "b", "raw.csv")
+            write_raw_csv(path, _small_experiment().run())
             self.assertTrue(os.path.exists(path))
 
-
-class TestCsvHeaders(unittest.TestCase):
-    """Tests that the CSV file contains the expected column headers."""
-
-    def test_headers_match_expected(self):
-        """CSV file should contain exactly the columns defined in HEADERS, in order."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            path = os.path.join(tmpdir, "output.csv")
-            rows = _small_experiment().run()
-            write_csv(path, rows)
+    def test_raw_headers_match_expected(self):
+        """CSV header row must match RAW_HEADERS exactly."""
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "raw.csv")
+            write_raw_csv(path, _small_experiment().run())
             with open(path, newline="", encoding="utf-8") as f:
-                reader = csv.DictReader(f)
-                self.assertEqual(reader.fieldnames, HEADERS)
+                self.assertEqual(csv.DictReader(f).fieldnames, RAW_HEADERS)
 
-
-class TestCsvRowCount(unittest.TestCase):
-    """Tests that the CSV contains the correct number of rows."""
-
-    def test_row_count_matches_ticks_times_stores(self):
+    def test_raw_row_count(self):
         """Row count should be num_runs * ticks * num_stores (1 * 3 * 2 = 6)."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            path = os.path.join(tmpdir, "output.csv")
-            rows = _small_experiment().run()
-            write_csv(path, rows)
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "raw.csv")
+            write_raw_csv(path, _small_experiment().run())
+            with open(path, newline="", encoding="utf-8") as f:
+                self.assertEqual(len(list(csv.DictReader(f))), 6)
+
+    def test_numeric_fields_parseable(self):
+        """All numeric columns should parse as float or int without error."""
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "raw.csv")
+            write_raw_csv(path, _small_experiment().run())
+            with open(path, newline="", encoding="utf-8") as f:
+                for row in csv.DictReader(f):
+                    int(row["tick"])
+                    int(row["store_id"])
+                    int(row["run_id"])
+                    float(row["store_position"])
+                    float(row["store_price"])
+                    float(row["store_profit"])
+                    int(row["store_market_share"])
+                    int(row["assigned_customer_count"])
+                    float(row["distance_from_centre"])
+                    float(row["average_distance_to_other_stores"])
+
+    def test_experiment_name_populated(self):
+        """experiment_name column must not be empty."""
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "raw.csv")
+            write_raw_csv(path, _small_experiment(experiment_name="myexp").run())
+            with open(path, newline="", encoding="utf-8") as f:
+                for row in csv.DictReader(f):
+                    self.assertEqual(row["experiment_name"], "myexp")
+
+
+class TestSummaryCsvCreation(unittest.TestCase):
+    """Tests that write_summary_csv creates a properly structured summary file."""
+
+    def _get_summary_rows(self) -> list:
+        """Run a small experiment and generate summary rows."""
+        rows = _small_experiment().run()
+        return generate_summary_rows(
+            rows=rows,
+            experiment_name="test",
+            scenario_name="test_scenario",
+            parameter_name="configuration",
+            parameter_value="default",
+        )
+
+    def test_summary_file_is_created(self):
+        """write_summary_csv should create the file at the given path."""
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "summary.csv")
+            write_summary_csv(path, self._get_summary_rows())
+            self.assertTrue(os.path.exists(path))
+
+    def test_summary_headers_match_expected(self):
+        """Summary CSV header row must match SUMMARY_HEADERS exactly."""
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "summary.csv")
+            write_summary_csv(path, self._get_summary_rows())
+            with open(path, newline="", encoding="utf-8") as f:
+                self.assertEqual(csv.DictReader(f).fieldnames, SUMMARY_HEADERS)
+
+    def test_summary_has_one_row_per_metric(self):
+        """Summary should have exactly one row for each metric in SUMMARY_METRICS."""
+        from hotelling.statistics import SUMMARY_METRICS
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "summary.csv")
+            write_summary_csv(path, self._get_summary_rows())
             with open(path, newline="", encoding="utf-8") as f:
                 data = list(csv.DictReader(f))
-            self.assertEqual(len(data), 6)
+            self.assertEqual(len(data), len(SUMMARY_METRICS))
 
-
-class TestCsvValues(unittest.TestCase):
-    """Tests that CSV values are correctly typed and within expected ranges."""
-
-    def _read_rows(self) -> list:
-        """Write a small experiment and return the parsed CSV rows."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            path = os.path.join(tmpdir, "output.csv")
-            rows = _small_experiment().run()
-            write_csv(path, rows)
+    def test_summary_mean_is_parseable_float(self):
+        """The mean column in summary rows must parse as a float."""
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "summary.csv")
+            write_summary_csv(path, self._get_summary_rows())
             with open(path, newline="", encoding="utf-8") as f:
-                return list(csv.DictReader(f))
-
-    def test_numeric_fields_are_parseable(self):
-        """Numeric columns should parse as float or int without raising ValueError."""
-        for row in self._read_rows():
-            float(row["store_position"])
-            float(row["store_price"])
-            float(row["store_profit"])
-            int(row["store_market_share"])
-            float(row["distance_from_centre"])
-            float(row["average_distance_to_other_stores"])
-            int(row["tick"])
-            int(row["store_id"])
-            int(row["run_id"])
-
-    def test_experiment_name_is_populated(self):
-        """experiment_name column should not be empty."""
-        for row in self._read_rows():
-            self.assertTrue(len(row["experiment_name"]) > 0)
-
-    def test_parameters_summary_is_populated(self):
-        """parameters_summary column should contain at least one key=value pair."""
-        for row in self._read_rows():
-            self.assertIn("=", row["parameters_summary"])
+                for row in csv.DictReader(f):
+                    float(row["mean"])
+                    float(row["standard_deviation"])
+                    float(row["minimum"])
+                    float(row["maximum"])
+                    int(row["run_count"])
 
 
 if __name__ == "__main__":

@@ -1,13 +1,24 @@
-"""Command-line entry point for running Hotelling's Law experiments."""
+"""
+Command-line entry point for the Hotelling's Law simulation.
+
+Usage:
+    python run.py baseline   Run the baseline two-store experiment.
+    python run.py sweep      Run the replication parameter sweep.
+    python run.py loyalty    Run the customer loyalty extension experiment.
+    python run.py all        Run all three experiments in sequence.
+    python run.py test       Discover and run all unit tests in tests/.
+"""
 
 import argparse
 import os
+import subprocess
 import sys
 
-# Ensure the project root is on sys.path regardless of working directory.
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+# Ensure the project root is on sys.path regardless of where the script is invoked.
+_PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, _PROJECT_ROOT)
 
-COMMANDS = ("baseline", "sweep", "loyalty", "all")
+COMMANDS = ("baseline", "sweep", "loyalty", "all", "test")
 
 
 def main() -> None:
@@ -17,29 +28,48 @@ def main() -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=(
             "commands:\n"
-            "  baseline  Two-store model, 10 runs (outputs/baseline.csv)\n"
-            "  sweep     Sweep over num_stores and distance_weight (outputs/parameter_sweep.csv)\n"
-            "  loyalty   Compare loyalty_strength values (outputs/extension_loyalty.csv)\n"
+            "  baseline  Baseline two-store model, 30 runs (outputs/baseline_*.csv)\n"
+            "  sweep     Parameter sweep: num_stores, distance_weight, distribution\n"
+            "            (outputs/replication_sweep_*.csv)\n"
+            "  loyalty   Customer loyalty extension experiment\n"
+            "            (outputs/extension_loyalty_*.csv)\n"
             "  all       Run all three experiments\n"
+            "  test      Discover and run all unit tests\n"
         ),
     )
-    parser.add_argument("command", choices=COMMANDS, help="Experiment to run.")
+    parser.add_argument("command", choices=COMMANDS, help="Command to run.")
     args = parser.parse_args()
+
+    if args.command == "test":
+        _run_tests()
+        return
 
     if args.command in ("baseline", "all"):
         from experiments.baseline import run_baseline
-        print("Running baseline experiment...")
         run_baseline()
 
     if args.command in ("sweep", "all"):
-        from experiments.parameter_sweep import run_sweep
-        print("Running parameter sweep...")
+        from experiments.replication_sweep import run_sweep
         run_sweep()
 
     if args.command in ("loyalty", "all"):
         from experiments.extension_loyalty import run_loyalty
-        print("Running loyalty extension experiment...")
         run_loyalty()
+
+
+def _run_tests() -> None:
+    """
+    Discover and run all unit tests in the tests/ directory.
+
+    Delegates to unittest's built-in discovery mechanism.  Exits with a non-zero
+    status code if any tests fail so that CI pipelines can detect failures.
+    """
+    print("Discovering and running tests in tests/ ...")
+    result = subprocess.run(
+        [sys.executable, "-m", "unittest", "discover", "-s", "tests", "-v"],
+        cwd=_PROJECT_ROOT,
+    )
+    sys.exit(result.returncode)
 
 
 if __name__ == "__main__":

@@ -1,133 +1,117 @@
-# Hotelling's Law Simulation
+# Hotelling's Law Simulation — SWEN90004 Assignment 2
 
-A plain Python 3.14 implementation of Hotelling's Law on a one-dimensional market line.
-
-This repository is an initial implementation intended for later quantitative comparison
-against the original NetLogo Hotelling's Law model. It produces CSV outputs that capture
-per-tick store metrics across configurable experimental conditions.
+A Python 3.14 replication of the NetLogo Hotelling's Law model, implemented using only the
+Python standard library.  Produces CSV outputs for quantitative comparison against the
+original NetLogo model.
 
 ---
 
-## Model overview
+## Assignment Context
 
-Hotelling's Law describes how competing vendors on a one-dimensional market tend to converge
-toward the centre over time. This implementation models that dynamic with the following rules.
+This project is submitted for SWEN90004: Modelling Complex Software Systems, Assignment 2.
 
-### Market
+The assignment requires:
+1. Replicating an existing NetLogo agent-based model in Python.
+2. Running experiments to compare the Python replication against the original NetLogo model.
+3. Implementing and evaluating a novel model extension.
 
-The market is a continuous line from position `0` to `market_size`. Customers are placed
-at fixed positions drawn from a configurable distribution. Stores compete by adjusting their
-positions each tick to attract more customers.
-
-### Customer assignment
-
-Each tick, every customer chooses the store with the lowest effective cost:
-
-```
-effective_cost = store.price + distance_weight * |customer.position - store.position|
-```
-
-Ties (equal effective cost) are broken deterministically by the lowest store id.
-
-### Store movement
-
-After customer assignment, each store performs a one-step local search: it tests moving
-left by `step_size`, staying, and moving right by `step_size`, then moves to whichever
-candidate position yields the highest simulated profit. Positions are clamped to
-`[0, market_size]`. Store positions are updated sequentially in id order.
-
-### Profit
-
-```
-profit = market_share * price
-```
-
-### Customer distributions
-
-| Value       | Description                                                                  |
-|-------------|------------------------------------------------------------------------------|
-| `uniform`   | Positions drawn uniformly at random from `[0, market_size]`.               |
-| `clustered` | Positions drawn from Gaussian distributions centred at three evenly spaced  |
-|             | points (`sigma = market_size / 12`). Each customer is assigned to a cluster |
-|             | at random, then placed using `random.gauss`.                                 |
-
-### Loyalty extension
-
-When `loyalty_strength > 0.0`, a returning customer's previous store receives a cost
-discount before comparison:
-
-```
-adjusted_cost = effective_cost * (1 - loyalty_strength)
-```
-
-- At `loyalty_strength = 0.0` the discount is zero and behaviour is identical to the
-  baseline.
-- At `loyalty_strength = 1.0` the previous store's adjusted cost is always 0, so the
-  customer never switches.
-- The discount applies only from the second tick onward (customers have no previous store
-  on the first tick).
-
-Loyalty is not applied during the store position lookahead; stores optimise based on
-raw effective costs only.
+The NetLogo Hotelling's Law model is the reference.
 
 ---
 
-## Parameters
+## What Is Hotelling's Law?
 
-| Parameter               | Default   | Description                                         |
-|-------------------------|-----------|-----------------------------------------------------|
-| `market_size`           | `100`     | Length of the market line.                          |
-| `num_customers`         | `100`     | Number of customers.                                |
-| `num_stores`            | `2`       | Number of competing stores.                         |
-| `ticks`                 | `50`      | Number of simulation steps.                         |
-| `price`                 | `1.0`     | Fixed price charged by all stores.                  |
-| `distance_weight`       | `1.0`     | Weight applied to travel distance in effective cost.|
-| `step_size`             | `1.0`     | Maximum distance a store can move per tick.         |
-| `random_seed`           | `None`    | RNG seed for reproducibility (`None` = random).     |
-| `customer_distribution` | `uniform` | Customer placement distribution.                    |
-| `loyalty_strength`      | `0.0`     | Previous-store discount factor (0.0–1.0).           |
+Hotelling's Law (1929) describes how competing vendors on a one-dimensional market tend to
+cluster toward the centre over time.  This is called the **principle of minimum
+differentiation**: rather than spreading out to cover the market, rational competitors move
+toward the middle to maximise their customer base at the expense of competitors.
+
+This simulation places stores and customers on a line.  Customers choose the cheapest
+store (price + travel cost).  Stores move each tick to attract more customers.
 
 ---
 
 ## Requirements
 
-- Python 3.14 or later.
-- No external dependencies — standard library only.
+- Python 3.14 or later
+- No external packages required (standard library only)
 
 ---
 
-## Running experiments
+## Repository Structure
 
-All commands should be run from the `hotelling-law/` project root.
+```
+hotelling-law/
+├── run.py                          Main CLI entry point
+├── hotelling/
+│   ├── customer.py                 Customer agent
+│   ├── store.py                    Store agent
+│   ├── model.py                    Simulation model
+│   ├── experiment.py               Multi-run experiment runner
+│   ├── statistics.py               Summary statistics helpers
+│   └── csv_writer.py               CSV output utilities
+├── experiments/
+│   ├── baseline.py                 Baseline experiment
+│   ├── replication_sweep.py        Parameter sweep for replication
+│   ├── extension_loyalty.py        Loyalty extension experiment
+│   └── generate_all_results.py     Run all experiments
+├── outputs/                        Generated CSV files (not committed)
+├── tests/
+│   ├── test_customer_assignment.py
+│   ├── test_store_metrics.py
+│   ├── test_model_execution.py
+│   ├── test_csv_output.py
+│   └── test_loyalty_extension.py
+└── docs/
+    ├── MODEL_DESIGN.md             Model description and design decisions
+    ├── EXPERIMENT_PLAN.md          Experiment designs and expected behaviour
+    ├── EXTENSION_DESIGN.md         Loyalty extension rationale and design
+    ├── NETLOGO_COMPARISON_TEMPLATE.md  Template for comparing Python vs NetLogo
+    └── AI_USE_APPENDIX_DRAFT.md    Draft AI use statement
+```
 
-### Baseline — two-store model, 10 runs
+---
+
+## Running Experiments
+
+**All commands must be run from the `hotelling-law/` project root.**
+
+### Run the baseline experiment
 
 ```bash
 python run.py baseline
 ```
 
-Output: `outputs/baseline.csv`
+Runs the default two-store model for 30 replications.
 
-### Parameter sweep — vary `num_stores` and `distance_weight`
+Outputs:
+- `outputs/baseline_raw.csv`
+- `outputs/baseline_summary.csv`
+
+### Run the parameter sweep
 
 ```bash
 python run.py sweep
 ```
 
-Output: `outputs/parameter_sweep.csv`
+Sweeps `num_stores` (2, 4, 6), `distance_weight` (0.5, 1.0, 2.0), and
+`customer_distribution` (uniform, clustered) — 18 scenarios × 30 runs.
 
-Sweeps `num_stores` over `[2, 3, 4]` and `distance_weight` over `[0.5, 1.0, 2.0]`
-(9 conditions × 5 runs each).
+Outputs:
+- `outputs/replication_sweep_raw.csv`
+- `outputs/replication_sweep_summary.csv`
 
-### Loyalty extension — compare loyalty strengths
+### Run the loyalty extension experiment
 
 ```bash
 python run.py loyalty
 ```
 
-Output: `outputs/extension_loyalty.csv`
+Compares `loyalty_strength` values 0.0, 0.25, 0.5, 0.75 across 30 runs each.
 
-Compares `loyalty_strength` values `0.0`, `0.25`, `0.5`, and `0.75` (5 runs each).
+Outputs:
+- `outputs/extension_loyalty_raw.csv`
+- `outputs/extension_loyalty_summary.csv`
 
 ### Run all experiments
 
@@ -135,76 +119,164 @@ Compares `loyalty_strength` values `0.0`, `0.25`, `0.5`, and `0.75` (5 runs each
 python run.py all
 ```
 
-Experiment scripts can also be run directly:
+Runs baseline, sweep, and loyalty in sequence.  Produces all six CSV files.
+
+### Run experiments directly
+
+Individual experiment scripts can also be run from the project root:
 
 ```bash
 python experiments/baseline.py
-python experiments/parameter_sweep.py
+python experiments/replication_sweep.py
 python experiments/extension_loyalty.py
 ```
 
 ---
 
-## Running tests
-
-From the project root:
+## Running Tests
 
 ```bash
-python -m unittest discover tests
+python run.py test
 ```
 
-Or run a single file:
+Or directly with unittest discovery:
 
 ```bash
-python tests/test_basic_model.py
-python tests/test_csv_output.py
+python -m unittest discover tests -v
 ```
 
----
-
-## CSV output format
-
-All output files are written to `outputs/`. Each file contains one row per store per tick
-per run.
-
-| Column                             | Type    | Description                                          |
-|------------------------------------|---------|------------------------------------------------------|
-| `experiment_name`                  | string  | Label identifying the experiment.                    |
-| `run_id`                           | int     | Replicate index (0-based).                           |
-| `tick`                             | int     | Simulation step (0-based).                           |
-| `store_id`                         | int     | Store index (0-based).                               |
-| `store_position`                   | float   | Store position after movement this tick.             |
-| `store_price`                      | float   | Store's fixed price.                                 |
-| `store_profit`                     | float   | Profit earned this tick (market_share × price).      |
-| `store_market_share`               | int     | Number of customers served this tick.                |
-| `distance_from_centre`             | float   | Distance of the store from the market midpoint.      |
-| `average_distance_to_other_stores` | float   | Mean distance to all other stores.                   |
-| `parameters_summary`               | string  | Pipe-separated `key=value` pairs of model parameters.|
-
-Note: `store_position` reflects the position the store moved to at the end of the tick;
-`store_profit` reflects earnings computed at the start of that same tick before movement.
+All tests use Python's built-in `unittest` module; no test runner installation is needed.
 
 ---
 
-## Model assumptions
+## Model Overview
 
-- Customer positions are fixed throughout the simulation.
-- All stores share the same fixed price.
-- Stores optimise position independently with no coordination or communication.
-- The position lookahead uses a single step and does not account for other stores moving.
-- Loyalty applies only to customers who have been assigned at least once (from tick 1).
-- The simulation is fully deterministic when `random_seed` is set.
+### Market
+
+A continuous line from `0` to `market_size` (default 100).
+
+### Customers
+
+Fixed positions drawn from a uniform or clustered distribution.  Each tick, a customer
+chooses the store with the lowest effective cost.
+
+### Effective cost formula
+
+```
+effective_cost = store.price + distance_weight × |customer.position − store.position|
+```
+
+Ties are broken by the lowest store id.
+
+### Stores
+
+Stores move each tick by testing three candidate positions (left, stay, right by
+`step_size`) and moving to whichever yields the highest simulated profit.
+
+### Profit formula
+
+```
+profit = market_share × price
+```
+
+### Tick order
+
+1. Reset store metrics.
+2. Assign customers.
+3. Calculate profits.
+4. Record output (position before movement is recorded).
+5. Update store positions.
 
 ---
 
-## NetLogo comparison notes
+## Loyalty Extension
 
-This implementation is intended as a Python baseline for comparison against the NetLogo
-Hotelling's Law model. When comparing outputs, note:
+When `loyalty_strength > 0.0`, customers remember their previous store.  A customer stays
+with their previous store if:
 
-- NetLogo uses a discrete patch grid; this implementation uses a continuous line.
-- NetLogo's random number generator will differ from Python's `random` module.
-- Movement rules, tie-breaking, and update ordering may differ between implementations.
+```
+prev_store_cost <= best_store_cost + loyalty_strength × loyalty_threshold
+```
 
-For valid comparison, focus on aggregate statistics such as final store positions,
-convergence speed, and market share distribution rather than exact per-tick values.
+At `loyalty_strength = 0.0`, behaviour is identical to the baseline model.
+
+The extension tests whether customer inertia reduces store clustering and alters profit
+and market share dynamics.  See `docs/EXTENSION_DESIGN.md` for the full rationale.
+
+---
+
+## CSV Output Files
+
+### Raw CSV (`*_raw.csv`)
+
+One row per store per tick per run.
+
+| Column                             | Description                                          |
+|------------------------------------|------------------------------------------------------|
+| `experiment_name`                  | Experiment label.                                    |
+| `run_id`                           | Replication index (0-based).                         |
+| `tick`                             | Simulation step (0-based).                           |
+| `store_id`                         | Store index (0-based).                               |
+| `store_position`                   | Store position before movement this tick.            |
+| `store_price`                      | Fixed store price.                                   |
+| `store_profit`                     | Profit earned this tick (market_share × price).      |
+| `store_market_share`               | Customers served this tick.                          |
+| `assigned_customer_count`          | Same as market_share; included for completeness.     |
+| `distance_from_centre`             | Distance from the market midpoint.                   |
+| `average_distance_to_other_stores` | Mean distance to all other stores.                   |
+| `num_stores`                       | Parameter: number of stores.                         |
+| `num_customers`                    | Parameter: number of customers.                      |
+| `market_size`                      | Parameter: market line length.                       |
+| `distance_weight`                  | Parameter: travel cost multiplier.                   |
+| `step_size`                        | Parameter: maximum store movement per tick.          |
+| `customer_distribution`            | Parameter: customer placement distribution.          |
+| `loyalty_strength`                 | Parameter: loyalty retention factor.                 |
+| `loyalty_threshold`                | Parameter: loyalty cost margin.                      |
+| `random_seed`                      | RNG seed for this run.                               |
+
+### Summary CSV (`*_summary.csv`)
+
+One row per metric per scenario, aggregated over final-tick values across all runs.
+
+| Column               | Description                                                |
+|----------------------|------------------------------------------------------------|
+| `experiment_name`    | Experiment label.                                          |
+| `scenario_name`      | Scenario label (encodes parameter values).                 |
+| `parameter_name`     | Name of the key parameter varied in this scenario.         |
+| `parameter_value`    | Value of that parameter.                                   |
+| `metric_name`        | Metric being summarised.                                   |
+| `mean`               | Mean across runs.                                          |
+| `standard_deviation` | Standard deviation across runs.                            |
+| `minimum`            | Minimum observed across runs.                              |
+| `maximum`            | Maximum observed across runs.                              |
+| `run_count`          | Number of runs included.                                   |
+
+---
+
+## Comparing Against NetLogo
+
+1. Run the NetLogo Hotelling's Law model with matching parameter settings.
+2. Record final-tick metrics for the same number of runs (30).
+3. Fill in the `docs/NETLOGO_COMPARISON_TEMPLATE.md` table.
+4. Compare directional behaviour (clustering, profit trends) rather than exact values.
+
+Exact numerical agreement is not expected due to different random number generators and
+store update ordering.  See `docs/MODEL_DESIGN.md` for a full mapping.
+
+---
+
+## No External Dependencies
+
+This project uses only the Python standard library:
+
+- `random` — random number generation
+- `statistics` — mean and standard deviation
+- `csv` — CSV file reading and writing
+- `argparse` — command-line interface
+- `pathlib`, `os` — file path handling
+- `itertools` — parameter sweep iteration
+- `unittest` — testing framework
+- `subprocess` — test runner dispatch from run.py
+
+No installation step is required.  No `requirements.txt`, `pyproject.toml`, or virtual
+environment is needed.

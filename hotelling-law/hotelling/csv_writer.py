@@ -4,7 +4,8 @@ import csv
 import os
 from typing import Dict, List
 
-HEADERS: List[str] = [
+# Column order for the raw (per-tick, per-store) output CSV.
+RAW_HEADERS: List[str] = [
     "experiment_name",
     "run_id",
     "tick",
@@ -13,28 +14,65 @@ HEADERS: List[str] = [
     "store_price",
     "store_profit",
     "store_market_share",
+    "assigned_customer_count",
     "distance_from_centre",
     "average_distance_to_other_stores",
-    "parameters_summary",
+    "num_stores",
+    "num_customers",
+    "market_size",
+    "distance_weight",
+    "step_size",
+    "customer_distribution",
+    "loyalty_strength",
+    "loyalty_threshold",
+    "random_seed",
 ]
 
+# Column order for the summary (aggregated across runs) CSV.
+SUMMARY_HEADERS: List[str] = [
+    "experiment_name",
+    "scenario_name",
+    "parameter_name",
+    "parameter_value",
+    "metric_name",
+    "mean",
+    "standard_deviation",
+    "minimum",
+    "maximum",
+    "run_count",
+]
 
-def write_csv(filepath: str, rows: List[Dict]) -> None:
+# Convenience alias so callers that only need raw headers can import HEADERS.
+HEADERS = RAW_HEADERS
+
+
+def write_csv(filepath: str, rows: List[Dict], headers: List[str] = RAW_HEADERS) -> None:
     """
-    Write simulation output rows to a CSV file.
+    Write a list of row dicts to a CSV file at filepath.
 
-    Creates parent directories if they do not exist. Columns are written in the
-    fixed order defined by HEADERS; any extra keys in rows are silently ignored.
+    Creates parent directories automatically.  Columns are written in the order
+    defined by headers; extra keys in rows are silently ignored.
 
     Args:
         filepath: Destination path for the CSV file.
-        rows: List of row dicts, each produced by Experiment.run().
+        rows: List of row dicts to write.
+        headers: Column order.  Defaults to RAW_HEADERS.
     """
     parent = os.path.dirname(filepath)
     if parent:
         os.makedirs(parent, exist_ok=True)
 
     with open(filepath, "w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=HEADERS, extrasaction="ignore")
+        writer = csv.DictWriter(f, fieldnames=headers, extrasaction="ignore")
         writer.writeheader()
         writer.writerows(rows)
+
+
+def write_raw_csv(filepath: str, rows: List[Dict]) -> None:
+    """Write raw simulation rows using RAW_HEADERS column order."""
+    write_csv(filepath, rows, RAW_HEADERS)
+
+
+def write_summary_csv(filepath: str, rows: List[Dict]) -> None:
+    """Write summary rows using SUMMARY_HEADERS column order."""
+    write_csv(filepath, rows, SUMMARY_HEADERS)
