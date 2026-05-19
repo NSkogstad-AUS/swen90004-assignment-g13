@@ -49,6 +49,8 @@ NUM_STORES = 2
 PRICE = 10.0
 DISTANCE_WEIGHT = 1.0
 STEP_SIZE = 1.0
+PRICE_STEP = 1.0
+MIN_PRICE = 1.0
 CUSTOMER_DISTRIBUTION = "uniform"
 # loyalty_threshold sets the absolute cost margin for the loyalty check.
 # A value of 10.0 (equal to the price) means a competitor must be meaningfully
@@ -87,6 +89,8 @@ def run_loyalty() -> None:
             price=PRICE,
             distance_weight=DISTANCE_WEIGHT,
             step_size=STEP_SIZE,
+            price_step=PRICE_STEP,
+            min_price=MIN_PRICE,
             customer_distribution=CUSTOMER_DISTRIBUTION,
             loyalty_strength=loyalty_strength,
             loyalty_threshold=LOYALTY_THRESHOLD,
