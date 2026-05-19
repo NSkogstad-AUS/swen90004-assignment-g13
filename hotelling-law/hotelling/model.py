@@ -28,12 +28,12 @@ class HotellingModel:
     def __init__(
         self,
         market_size: int = 100,
-        num_customers: int = 100,
+        num_customers: int = 500,
         num_stores: int = 2,
         ticks: int = 100,
         price: float = 10.0,
         distance_weight: float = 1.0,
-        step_size: float = 2.0,
+        step_size: float = 1.0,
         random_seed: Optional[int] = None,
         customer_distribution: str = "uniform",
         loyalty_strength: float = 0.0,
@@ -93,11 +93,13 @@ class HotellingModel:
         """
         Return a list of customers placed according to customer_distribution.
 
+        Positions are integer-valued (0 to market_size inclusive), matching the
+        NetLogo patch model where each patch is a discrete location.
         Raises ValueError for unknown distribution names.
         """
         if self.customer_distribution == "uniform":
             return [
-                Customer(id=i, position=self._rng.uniform(0.0, float(self.market_size)))
+                Customer(id=i, position=self._rng.randint(0, self.market_size))
                 for i in range(self.num_customers)
             ]
         if self.customer_distribution == "clustered":
@@ -109,8 +111,10 @@ class HotellingModel:
         Return customers distributed around three evenly spaced cluster centres.
 
         Each customer is assigned to a randomly chosen cluster, then placed using
-        a Gaussian draw with sigma = market_size / 12, clamped to [0, market_size].
-        Three clusters and this sigma produce noticeable but overlapping groups.
+        a Gaussian draw (sigma = market_size / 12) rounded to the nearest integer
+        and clamped to [0, market_size].  Integer positions match the NetLogo patch
+        model and ensure the midpoint between any two stores always falls at a
+        half-integer, eliminating ambiguous tie regions.
         """
         num_clusters = 3
         sigma = self.market_size / 12.0
@@ -122,22 +126,23 @@ class HotellingModel:
         customers = []
         for i in range(self.num_customers):
             centre = self._rng.choice(centres)
-            pos = self._rng.gauss(centre, sigma)
-            pos = max(0.0, min(float(self.market_size), pos))
+            pos = round(self._rng.gauss(centre, sigma))
+            pos = max(0, min(self.market_size, pos))
             customers.append(Customer(id=i, position=pos))
         return customers
 
     def _create_stores(self) -> List[Store]:
         """
-        Return stores placed at evenly spaced intervals across the market.
+        Return stores placed at evenly spaced integer positions across the market.
 
-        Store i starts at market_size * (i+1) / (num_stores+1), ensuring no store
-        begins at the boundary and all stores are symmetrically distributed.
+        Store i starts at round(market_size * (i+1) / (num_stores+1)).  Integer
+        positions match the NetLogo patch model.  All runs start from the same
+        deterministic configuration; variation comes only from customer placement.
         """
         return [
             Store(
                 id=i,
-                position=float(self.market_size) * (i + 1) / (self.num_stores + 1),
+                position=round(float(self.market_size) * (i + 1) / (self.num_stores + 1)),
                 price=self.price,
             )
             for i in range(self.num_stores)

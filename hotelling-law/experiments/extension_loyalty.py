@@ -44,11 +44,11 @@ TICKS = 100
 
 # --- Fixed model parameters ---
 MARKET_SIZE = 100
-NUM_CUSTOMERS = 100
+NUM_CUSTOMERS = 500
 NUM_STORES = 2
 PRICE = 10.0
 DISTANCE_WEIGHT = 1.0
-STEP_SIZE = 2.0
+STEP_SIZE = 1.0
 CUSTOMER_DISTRIBUTION = "uniform"
 # loyalty_threshold sets the absolute cost margin for the loyalty check.
 # A value of 10.0 (equal to the price) means a competitor must be meaningfully

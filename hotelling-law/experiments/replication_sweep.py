@@ -40,9 +40,9 @@ TICKS = 100
 
 # --- Fixed parameters (held constant while others are swept) ---
 MARKET_SIZE = 100
-NUM_CUSTOMERS = 100
+NUM_CUSTOMERS = 500
 PRICE = 10.0
-STEP_SIZE = 2.0
+STEP_SIZE = 1.0
 LOYALTY_STRENGTH = 0.0
 LOYALTY_THRESHOLD = 10.0
 
