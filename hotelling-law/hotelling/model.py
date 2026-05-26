@@ -44,6 +44,8 @@ class HotellingModel:
         step_size: float = 1.0,
         random_seed: Optional[int] = None,
         customer_distribution: str = "uniform",
+        layout: str = "line",
+        rules: str = "normal",
         loyalty_strength: float = 0.0,
         loyalty_threshold: float = 10.0,
     ):
@@ -80,6 +82,13 @@ class HotellingModel:
         self.price_step: float = price_step
         self.distance_weight: float = distance_weight
         self.step_size: float = step_size
+        # Model layout: 'line' (1D) or 'plane' (2D). Currently behaviour is 1D;
+        # 'plane' is accepted for compatibility with NetLogo inputs but treated
+        # as 'line' in the current implementation.
+        self.layout: str = layout
+        # Rules control whether stores may move and/or change prices:
+        # 'normal' -> both; 'moving-only' -> only move; 'pricing-only' -> only price.
+        self.rules: str = rules
         self.random_seed: Optional[int] = random_seed
         self.customer_distribution: str = customer_distribution
         self.loyalty_strength: float = loyalty_strength
@@ -300,6 +309,9 @@ class HotellingModel:
         position using the pre-move state of all stores, then all moves are applied at
         once.  Prices are held fixed during this step.
         """
+        # If the rules prohibit moving, skip position updates.
+        if self.rules == "pricing-only":
+            return
         new_positions = [self._best_position(store) for store in self.stores]
         for store, pos in zip(self.stores, new_positions):
             store.position = pos
@@ -352,6 +364,9 @@ class HotellingModel:
         price using the current prices of all competitors, then all changes are applied
         at once.  Positions are fixed at the values set by _update_store_positions.
         """
+        # If the rules prohibit pricing changes, skip price updates.
+        if self.rules == "moving-only":
+            return
         new_prices = [self._best_price(store) for store in self.stores]
         for store, price in zip(self.stores, new_prices):
             store.price = price

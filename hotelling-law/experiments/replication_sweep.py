@@ -8,8 +8,8 @@ Purpose:
 
 Swept parameters:
     num_stores:            2, 4, 6
-    distance_weight:       0.5, 1.0, 2.0
-    customer_distribution: uniform, clustered
+    layout:                "plane", "line"
+    rules:                 "normal", "moving-only", "pricing-only"
 
 For each combination: 30 independent runs, 100 ticks each.
 
@@ -44,18 +44,19 @@ NUM_CUSTOMERS = 101
 PRICE = 10.0
 STEP_SIZE = 1.0
 PRICE_STEP = 1.0
+DISTANCE_WEIGHT = 1.0
 LOYALTY_STRENGTH = 0.0
 LOYALTY_THRESHOLD = 10.0
 
-# --- Swept parameter values ---
+# --- Swept parameter values (aligned with NetLogo controls) ---
 NUM_STORES_VALUES = [2, 4, 6]
-DISTANCE_WEIGHT_VALUES = [0.5, 1.0, 2.0]
-DISTRIBUTION_VALUES = ["uniform", "clustered"]
+LAYOUT_VALUES = ["plane", "line"]
+RULES_VALUES = ["normal", "moving-only", "pricing-only"]
 
 
-def _make_scenario_name(num_stores: int, distance_weight: float, distribution: str) -> str:
-    """Return a compact scenario label encoding all three swept parameters."""
-    return f"stores{num_stores}_dw{distance_weight}_dist{distribution}"
+def _make_scenario_name(num_stores: int, layout: str, rules: str) -> str:
+    """Return a compact scenario label encoding the swept parameters."""
+    return f"stores{num_stores}_layout{layout}_rules{rules}"
 
 
 def run_sweep() -> None:
@@ -63,41 +64,45 @@ def run_sweep() -> None:
     Run all parameter sweep scenarios and write raw and summary CSV files.
 
     Iterates over the full factorial combination of num_stores, distance_weight,
-    and customer_distribution.  All results are concatenated into a single raw CSV
+    and rules/layout choices.  All results are concatenated into a single raw CSV
     and a single summary CSV, distinguished by experiment_name and scenario_name.
     """
     all_raw: List[Dict] = []
     all_summary: List[Dict] = []
 
-    # Full factorial sweep: 3 * 3 * 2 = 18 scenarios.
-    scenarios = list(product(NUM_STORES_VALUES, DISTANCE_WEIGHT_VALUES, DISTRIBUTION_VALUES))
+    # Full factorial sweep over num_stores, layout, and rules.
+    scenarios = list(product(NUM_STORES_VALUES, LAYOUT_VALUES, RULES_VALUES))
     total = len(scenarios)
 
-    for idx, (num_stores, distance_weight, distribution) in enumerate(scenarios, start=1):
-        scenario_name = _make_scenario_name(num_stores, distance_weight, distribution)
+    for idx, (num_stores, layout, rules) in enumerate(scenarios, start=1):
+        scenario_name = _make_scenario_name(num_stores, layout, rules)
         print(f"[sweep] Scenario {idx}/{total}: {scenario_name} ...")
 
+        # Model currently supports 1D behaviour; we accept `layout` for compatibility
+        # and pass `rules` to control whether stores may move and/or change prices.
         experiment = Experiment(
             experiment_name=EXPERIMENT_NAME,
             num_runs=NUM_RUNS,
             base_seed=BASE_SEED,
             market_size=MARKET_SIZE,
             num_customers=NUM_CUSTOMERS,
-            num_stores=num_stores,
+            num_stores=num_stores_val,
             ticks=TICKS,
             price=PRICE,
-            distance_weight=distance_weight,
+            distance_weight=DISTANCE_WEIGHT,
             step_size=STEP_SIZE,
             price_step=PRICE_STEP,
-            customer_distribution=distribution,
+            customer_distribution="uniform",
             loyalty_strength=LOYALTY_STRENGTH,
             loyalty_threshold=LOYALTY_THRESHOLD,
+            layout=layout,
+            rules=rules,
         )
         raw_rows = experiment.run()
         all_raw.extend(raw_rows)
 
         # Summary rows for this scenario — use num_stores as the primary parameter
-        # label; distance_weight and distribution are encoded in scenario_name.
+        # label; layout and rules are encoded in scenario_name.
         summary_rows = generate_summary_rows(
             rows=raw_rows,
             experiment_name=EXPERIMENT_NAME,
