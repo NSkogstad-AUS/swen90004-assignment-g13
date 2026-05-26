@@ -110,8 +110,12 @@ Outputs:
 python3 run.py sweep
 ```
 
-Sweeps `num_stores` (2, 4, 6), `distance_weight` (0.5, 1.0, 2.0), and
-`customer_distribution` (uniform, clustered) — 18 scenarios × 30 runs.
+Sweeps `num_stores` (2, 4, 6), `layout` ("plane", "line"), and
+`rules` ("normal", "moving-only", "pricing-only") — 18 scenarios × 30 runs.
+
+**Note on `layout` parameter:** `layout="plane"` is accepted for compatibility with NetLogo
+but currently implemented as 1D. All simulations use a 1D market line; true 2D spatial behaviour
+is not yet supported.
 
 Outputs:
 - `outputs/replication_sweep_raw.csv`
@@ -247,6 +251,8 @@ One row per store per tick per run.
 | `distance_weight`                  | Parameter: travel cost multiplier.                   |
 | `step_size`                        | Parameter: maximum store movement per tick.          |
 | `customer_distribution`            | Parameter: customer placement distribution.          |
+| `layout`                           | Parameter: market layout ("line" or "plane"; currently 1D). |
+| `rules`                            | Parameter: store behaviour rules (normal/moving-only/pricing-only). |
 | `loyalty_strength`                 | Parameter: loyalty retention factor.                 |
 | `loyalty_threshold`                | Parameter: loyalty cost margin.                      |
 | `random_seed`                      | RNG seed for this run.                               |
