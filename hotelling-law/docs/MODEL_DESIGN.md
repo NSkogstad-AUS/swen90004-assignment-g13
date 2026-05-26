@@ -133,8 +133,9 @@ profit = market_share × price
 
 ### Uniform
 
-Customer positions are drawn independently from a uniform distribution over
-`[0, market_size]`.  This matches the default NetLogo distribution.
+With the default NetLogo-aligned setup, one customer is placed on each integer patch
+from `-50` to `50`.  Other customer counts are drawn uniformly from the same centered
+market bounds.
 
 ### Clustered
 

@@ -40,11 +40,10 @@ TICKS = 100
 
 # --- Fixed parameters (held constant while others are swept) ---
 MARKET_SIZE = 100
-NUM_CUSTOMERS = 500
+NUM_CUSTOMERS = 101
 PRICE = 10.0
 STEP_SIZE = 1.0
 PRICE_STEP = 1.0
-MIN_PRICE = 1.0
 LOYALTY_STRENGTH = 0.0
 LOYALTY_THRESHOLD = 10.0
 
@@ -90,7 +89,6 @@ def run_sweep() -> None:
             distance_weight=distance_weight,
             step_size=STEP_SIZE,
             price_step=PRICE_STEP,
-            min_price=MIN_PRICE,
             customer_distribution=distribution,
             loyalty_strength=LOYALTY_STRENGTH,
             loyalty_threshold=LOYALTY_THRESHOLD,

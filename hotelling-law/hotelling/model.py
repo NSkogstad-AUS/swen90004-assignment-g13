@@ -35,12 +35,11 @@ class HotellingModel:
     def __init__(
         self,
         market_size: int = 100,
-        num_customers: int = 500,
+        num_customers: int = 101,
         num_stores: int = 2,
         ticks: int = 100,
         price: float = 10.0,
         price_step: float = 1.0,
-        min_price: float = 1.0,
         distance_weight: float = 1.0,
         step_size: float = 1.0,
         random_seed: Optional[int] = None,
@@ -52,16 +51,13 @@ class HotellingModel:
         Initialise the model with the given parameters.
 
         Args:
-            market_size: Length of the market line; integer positions span [0, market_size].
+            market_size: Length of the market line; default integer positions span [-50, 50].
             num_customers: Number of customers placed on the market line.
             num_stores: Number of competing stores.
             ticks: Number of simulation steps to execute.
             price: Initial price for every store.  Prices evolve dynamically each tick.
             price_step: Amount by which a store can raise or lower its price each tick.
                         Matches the NetLogo model's ±1 price unit per tick.
-            min_price: Floor on store prices.  Prices cannot fall below this value.
-                       The NetLogo model has an implicit floor of 1 via its emergency
-                       price-drop procedure.
             distance_weight: Multiplier applied to travel distance in effective cost.
                              Set to 1.0 to match the NetLogo model (no weighting).
             step_size: Maximum distance a store can move per tick.
@@ -75,12 +71,13 @@ class HotellingModel:
         """
         # --- Simulation parameters ---
         self.market_size: int = market_size
+        self.market_min: int = -int(market_size / 2)
+        self.market_max: int = int(market_size / 2)
         self.num_customers: int = num_customers
         self.num_stores: int = num_stores
         self.ticks: int = ticks
         self.price: float = price             # initial price; stores diverge over time
         self.price_step: float = price_step
-        self.min_price: float = min_price
         self.distance_weight: float = distance_weight
         self.step_size: float = step_size
         self.random_seed: Optional[int] = random_seed
@@ -110,12 +107,18 @@ class HotellingModel:
         """
         Return customers placed according to customer_distribution.
 
-        Positions are integer-valued (0 to market_size), matching NetLogo's discrete
+        Positions are integer-valued, matching NetLogo's discrete
         patches.  Raises ValueError for unknown distribution names.
         """
         if self.customer_distribution == "uniform":
+            patch_positions = self._patch_positions()
+            if self.num_customers == len(patch_positions):
+                return [
+                    Customer(id=i, position=position)
+                    for i, position in enumerate(patch_positions)
+                ]
             return [
-                Customer(id=i, position=self._rng.randint(0, self.market_size))
+                Customer(id=i, position=self._rng.choice(patch_positions))
                 for i in range(self.num_customers)
             ]
         if self.customer_distribution == "clustered":
@@ -128,19 +131,19 @@ class HotellingModel:
 
         Each customer is assigned to a random cluster, then positioned using a Gaussian
         draw (sigma = market_size / 12) rounded to the nearest integer and clamped to
-        [0, market_size].  Integer positions match NetLogo's patch model.
+        the market bounds.  Integer positions match NetLogo's patch model.
         """
         num_clusters = 3
         sigma = self.market_size / 12.0
         centres = [
-            self.market_size * (k + 1) / (num_clusters + 1)
+            self.market_min + self.market_size * (k + 1) / (num_clusters + 1)
             for k in range(num_clusters)
         ]
         customers = []
         for i in range(self.num_customers):
             centre = self._rng.choice(centres)
             pos = round(self._rng.gauss(centre, sigma))
-            pos = max(0, min(self.market_size, pos))
+            pos = max(self.market_min, min(self.market_max, pos))
             customers.append(Customer(id=i, position=pos))
         return customers
 
@@ -149,17 +152,21 @@ class HotellingModel:
         Return stores at random integer positions, matching the NetLogo setup procedure.
 
         Each store is placed on a randomly chosen consumer patch (integer position in
-        [0, market_size]).  Multiple stores may share an initial position.  All stores
+        the market bounds).  Multiple stores may share an initial position.  All stores
         start with the same initial price; prices diverge dynamically each tick.
         """
         return [
             Store(
                 id=i,
-                position=self._rng.randint(0, self.market_size),
+                position=self._rng.randint(self.market_min, self.market_max),
                 price=self.price,
             )
             for i in range(self.num_stores)
         ]
+
+    def _patch_positions(self) -> List[int]:
+        """Return all integer patch coordinates in the market."""
+        return list(range(self.market_min, self.market_max + 1))
 
     # ------------------------------------------------------------------
     # Simulation loop
@@ -307,11 +314,11 @@ class HotellingModel:
         - If the store had zero customers, the current position is excluded; the store
           must move (NetLogo: "only consider status quo if area-count > 0").  Direction
           is chosen randomly on ties.
-        Candidates are clamped to [0, market_size].
+        Candidates are clamped to the market bounds.
         """
         stay = round(store.position)
-        left = max(0, min(self.market_size, round(store.position - self.step_size)))
-        right = max(0, min(self.market_size, round(store.position + self.step_size)))
+        left = max(self.market_min, min(self.market_max, round(store.position - self.step_size)))
+        right = max(self.market_min, min(self.market_max, round(store.position + self.step_size)))
 
         if store.market_share > 0:
             # Status quo included; it wins ties (placed first, stable sort equivalent).
@@ -357,12 +364,11 @@ class HotellingModel:
         Matches the NetLogo new-price-task logic:
         - Status quo wins ties (equivalent to NetLogo's sort-by stability).
         - Emergency procedure: if all candidate prices yield zero revenue and the
-          current price is above min_price, lower the price by price_step.  This
-          prevents stores from being permanently stuck with zero market share.
-        - Prices are floored at min_price.
+          current price lowers by price_step.  This prevents stores from being
+          permanently stuck with zero market share.
         """
         candidates = [
-            max(self.min_price, store.price - self.price_step),
+            store.price - self.price_step,
             store.price,
             store.price + self.price_step,
         ]
@@ -370,9 +376,9 @@ class HotellingModel:
             self._simulated_revenue(store, store.position, p) for p in candidates
         ]
 
-        # Emergency: all revenues zero and price above floor — drop price to attract customers.
-        if all(r == 0.0 for r in revenues) and store.price > self.min_price:
-            return max(self.min_price, store.price - self.price_step)
+        # Emergency: all revenues zero, so drop price to attract customers.
+        if all(r == 0.0 for r in revenues):
+            return store.price - self.price_step
 
         best_price = store.price
         best_rev = float("-inf")
@@ -432,7 +438,7 @@ class HotellingModel:
         store_position and store_price reflect the state when revenue was earned.
         All model parameters are embedded in every row for self-contained CSV output.
         """
-        centre = self.market_size / 2.0
+        centre = 0.0
         num_stores = len(self.stores)
 
         for store in self.stores:
@@ -464,7 +470,6 @@ class HotellingModel:
                 "distance_weight": self.distance_weight,
                 "step_size": self.step_size,
                 "price_step": self.price_step,
-                "min_price": self.min_price,
                 "customer_distribution": self.customer_distribution,
                 "loyalty_strength": self.loyalty_strength,
                 "loyalty_threshold": self.loyalty_threshold,

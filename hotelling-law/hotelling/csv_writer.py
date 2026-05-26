@@ -23,7 +23,6 @@ RAW_HEADERS: List[str] = [
     "distance_weight",
     "step_size",
     "price_step",
-    "min_price",
     "customer_distribution",
     "loyalty_strength",
     "loyalty_threshold",

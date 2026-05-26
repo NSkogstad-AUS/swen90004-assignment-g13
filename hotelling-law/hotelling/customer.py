@@ -17,7 +17,7 @@ class Customer:
 
         Args:
             id: Unique non-negative integer identifier.
-            position: Fixed location on the market line [0, market_size].
+            position: Fixed location on the market line.
             previous_store_id: The id of the store chosen in the previous tick.
                                None on the first tick (no prior choice exists).
         """

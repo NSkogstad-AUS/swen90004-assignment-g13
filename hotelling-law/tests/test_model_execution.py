@@ -17,6 +17,17 @@ from hotelling.model import HotellingModel
 class TestModelRun(unittest.TestCase):
     """Tests that the model executes without crashing and returns correct output."""
 
+    def test_default_netlogo_grid_has_one_customer_per_patch(self):
+        """Default setup should place one customer on each -50..50 patch."""
+        model = HotellingModel(ticks=0, random_seed=0)
+        self.assertEqual(model.num_customers, 101)
+        self.assertEqual([c.position for c in model.customers], list(range(-50, 51)))
+
+    def test_default_starting_price_is_ten(self):
+        """Stores should start at the NetLogo hardcoded price."""
+        model = HotellingModel(ticks=0, random_seed=0)
+        self.assertTrue(all(store.price == 10.0 for store in model.stores))
+
     def test_run_completes_without_exception(self):
         """Model.run() should complete all ticks without raising an exception."""
         model = HotellingModel(
@@ -62,21 +73,32 @@ class TestModelRun(unittest.TestCase):
             self.assertEqual(tick_store_ids, {0, 1, 2})
 
 
+class TestPricing(unittest.TestCase):
+    """Tests store price update behaviour."""
+
+    def test_price_can_drop_below_removed_floor(self):
+        """Price updates should not be clamped to the former min_price floor."""
+        model = HotellingModel(
+            market_size=100, num_customers=0, num_stores=1,
+            ticks=1, price=0.5, price_step=1.0, random_seed=0,
+        )
+        model.run()
+        self.assertEqual(model.stores[0].price, -0.5)
+
+
 class TestStoreBounds(unittest.TestCase):
-    """Tests that store positions stay within [0, market_size] after movement."""
+    """Tests that store positions stay within centered market bounds after movement."""
 
     def test_positions_within_bounds_after_run(self):
-        """No store position should fall outside [0, market_size]."""
+        """No store position should fall outside the centered market bounds."""
         model = HotellingModel(
             market_size=50, num_customers=30, num_stores=2,
             ticks=50, price=10.0, distance_weight=1.0, random_seed=5, step_size=5.0,
         )
         model.run()
         for store in model.stores:
-            self.assertGreaterEqual(store.position, 0.0,
-                                    f"store {store.id} position {store.position} < 0")
-            self.assertLessEqual(store.position, 50.0,
-                                 f"store {store.id} position {store.position} > market_size")
+            self.assertGreaterEqual(store.position, model.market_min)
+            self.assertLessEqual(store.position, model.market_max)
 
     def test_positions_within_bounds_large_step(self):
         """Even with a step_size larger than market_size, positions remain bounded."""
@@ -86,8 +108,8 @@ class TestStoreBounds(unittest.TestCase):
         )
         model.run()
         for store in model.stores:
-            self.assertGreaterEqual(store.position, 0.0)
-            self.assertLessEqual(store.position, 20.0)
+            self.assertGreaterEqual(store.position, model.market_min)
+            self.assertLessEqual(store.position, model.market_max)
 
     def test_positions_in_recorded_rows_within_bounds(self):
         """Recorded store_position values in output rows must all be within bounds."""
@@ -99,8 +121,8 @@ class TestStoreBounds(unittest.TestCase):
         rows = model.run()
         for row in rows:
             pos = float(row["store_position"])
-            self.assertGreaterEqual(pos, 0.0)
-            self.assertLessEqual(pos, float(market_size))
+            self.assertGreaterEqual(pos, -market_size / 2.0)
+            self.assertLessEqual(pos, market_size / 2.0)
 
 
 class TestDeterminism(unittest.TestCase):

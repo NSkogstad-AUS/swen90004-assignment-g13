@@ -15,8 +15,8 @@ class Store:
 
         Args:
             id: Unique non-negative integer identifier.  Used for tie-breaking.
-            position: Initial location on the market line [0, market_size].
-            price: Fixed price charged to all customers; does not change during a run.
+            position: Initial location on the market line.
+            price: Starting price charged to customers; changes during a run.
         """
         # Identity and fixed attributes.
         self.id: int = id
