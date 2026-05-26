@@ -486,6 +486,8 @@ class HotellingModel:
                 "step_size": self.step_size,
                 "price_step": self.price_step,
                 "customer_distribution": self.customer_distribution,
+                "layout": self.layout,
+                "rules": self.rules,
                 "loyalty_strength": self.loyalty_strength,
                 "loyalty_threshold": self.loyalty_threshold,
                 "random_seed": self.random_seed,
