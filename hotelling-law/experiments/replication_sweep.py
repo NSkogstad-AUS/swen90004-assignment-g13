@@ -63,8 +63,8 @@ def run_sweep() -> None:
     """
     Run all parameter sweep scenarios and write raw and summary CSV files.
 
-    Iterates over the full factorial combination of num_stores, distance_weight,
-    and rules/layout choices.  All results are concatenated into a single raw CSV
+    Iterates over the full factorial combination of num_stores, layout,
+    and rules choices.  All results are concatenated into a single raw CSV
     and a single summary CSV, distinguished by experiment_name and scenario_name.
     """
     all_raw: List[Dict] = []
@@ -86,7 +86,7 @@ def run_sweep() -> None:
             base_seed=BASE_SEED,
             market_size=MARKET_SIZE,
             num_customers=NUM_CUSTOMERS,
-            num_stores=num_stores_val,
+            num_stores=num_stores,
             ticks=TICKS,
             price=PRICE,
             distance_weight=DISTANCE_WEIGHT,
