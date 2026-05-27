@@ -14,9 +14,11 @@ import unittest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from hotelling.csv_writer import (
+    NETLOGO_TABLE_HEADERS,
     RAW_HEADERS,
     SUMMARY_HEADERS,
     write_final_tick_raw_csv,
+    write_netlogo_table_csv,
     write_raw_csv,
     write_summary_csv,
 )
@@ -112,6 +114,22 @@ class TestRawCsvCreation(unittest.TestCase):
         self.assertEqual(len(rows), 2)
         self.assertEqual({int(row["tick"]) for row in rows}, {2})
         self.assertEqual({int(row["store_id"]) for row in rows}, {0, 1})
+
+    def test_netlogo_table_csv_matches_behavior_space_shape(self):
+        """NetLogo table CSV should have one final-step reporter row per run."""
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "netlogo_table.csv")
+            write_netlogo_table_csv(path, _small_experiment().run())
+            with open(path, newline="", encoding="utf-8") as f:
+                reader = csv.DictReader(f)
+                rows = list(reader)
+
+        self.assertEqual(reader.fieldnames, NETLOGO_TABLE_HEADERS)
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["[run number]"], "0")
+        self.assertEqual(rows[0]["[step]"], "3")
+        float(rows[0]["mean [pycor] of turtles"])
+        float(rows[0]["standard-deviation [area-count] of turtles"])
 
 
 class TestSummaryCsvCreation(unittest.TestCase):

@@ -10,6 +10,7 @@ Outputs:
     outputs/baseline_raw.csv     - one row per store per tick per run
     outputs/baseline_raw_2.csv   - one final-tick row per store per run
     outputs/baseline_summary.csv - final-tick summary statistics across runs
+    outputs/baseline_summary_netlogo.csv - one BehaviorSpace-style row per run
 """
 
 import os
@@ -20,13 +21,19 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from hotelling.experiment import Experiment
 from hotelling.statistics import generate_summary_rows
-from hotelling.csv_writer import write_final_tick_raw_csv, write_raw_csv, write_summary_csv
+from hotelling.csv_writer import (
+    write_final_tick_raw_csv,
+    write_netlogo_table_csv,
+    write_raw_csv,
+    write_summary_csv,
+)
 
 # --- Output paths (absolute, relative to project root) ---
 _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 RAW_OUTPUT = os.path.join(_PROJECT_ROOT, "outputs", "baseline_raw.csv")
 FINAL_TICK_RAW_OUTPUT = os.path.join(_PROJECT_ROOT, "outputs", "baseline_raw_2.csv")
 SUMMARY_OUTPUT = os.path.join(_PROJECT_ROOT, "outputs", "baseline_summary.csv")
+NETLOGO_TABLE_OUTPUT = os.path.join(_PROJECT_ROOT, "outputs", "baseline_summary_netlogo.csv")
 
 # --- Experiment configuration ---
 EXPERIMENT_NAME = "baseline"
@@ -96,6 +103,12 @@ def run_baseline() -> None:
     )
     write_summary_csv(SUMMARY_OUTPUT, summary_rows)
     print(f"[baseline] Summary output: {SUMMARY_OUTPUT}  ({len(summary_rows)} rows)")
+
+    write_netlogo_table_csv(NETLOGO_TABLE_OUTPUT, raw_rows)
+    print(
+        f"[baseline] NetLogo table:   {NETLOGO_TABLE_OUTPUT}  "
+        f"({NUM_RUNS} rows)"
+    )
 
 
 if __name__ == "__main__":
