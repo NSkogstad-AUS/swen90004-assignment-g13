@@ -199,16 +199,20 @@ class HotellingModel:
         2. Assign customers to stores (based on current positions and prices).
         3. Calculate revenue for each store.
         4. Record output metrics (state before this tick's optimisation moves).
-        5. Update store positions via local search (fixes prices, varies position).
-        6. Update store prices via local search (uses new positions, varies price).
+        5. Compute location and price changes from the same pre-update state.
+        6. Apply all location changes and then all price changes.
         """
         for store in self.stores:
             store.reset_metrics()
         self._assign_customers()
         self._calculate_profits()
         self._record_output(tick)
-        self._update_store_positions()
-        self._update_store_prices()
+        new_positions = self._planned_positions()
+        new_prices = self._planned_prices()
+        for store, pos in zip(self.stores, new_positions):
+            store.position = pos
+        for store, price in zip(self.stores, new_prices):
+            store.price = price
 
     # ------------------------------------------------------------------
     # Customer assignment
@@ -301,20 +305,18 @@ class HotellingModel:
     # Store position optimisation
     # ------------------------------------------------------------------
 
-    def _update_store_positions(self) -> None:
+    def _planned_positions(self) -> List[float]:
         """
-        Move all stores simultaneously to their best neighbouring position.
+        Return each store's planned next position.
 
         Matches NetLogo's task-based simultaneous update: every store computes its new
-        position using the pre-move state of all stores, then all moves are applied at
-        once.  Prices are held fixed during this step.
+        position using the pre-update state of all stores and prices. The caller later
+        applies all computed moves at once.
         """
         # If the rules prohibit moving, skip position updates.
         if self.rules == "pricing-only":
-            return
-        new_positions = [self._best_position(store) for store in self.stores]
-        for store, pos in zip(self.stores, new_positions):
-            store.position = pos
+            return [store.position for store in self.stores]
+        return [self._best_position(store) for store in self.stores]
 
     def _best_position(self, store: Store) -> float:
         """
@@ -356,20 +358,18 @@ class HotellingModel:
     # Store price optimisation
     # ------------------------------------------------------------------
 
-    def _update_store_prices(self) -> None:
+    def _planned_prices(self) -> List[float]:
         """
-        Adjust all stores' prices simultaneously to maximise simulated revenue.
+        Return each store's planned next price.
 
         Matches NetLogo's task-based simultaneous update: every store computes its new
-        price using the current prices of all competitors, then all changes are applied
-        at once.  Positions are fixed at the values set by _update_store_positions.
+        price using the same pre-update state used for location planning. The caller
+        later applies all computed price changes at once.
         """
         # If the rules prohibit pricing changes, skip price updates.
         if self.rules == "moving-only":
-            return
-        new_prices = [self._best_price(store) for store in self.stores]
-        for store, price in zip(self.stores, new_prices):
-            store.price = price
+            return [store.price for store in self.stores]
+        return [self._best_price(store) for store in self.stores]
 
     def _best_price(self, store: Store) -> float:
         """

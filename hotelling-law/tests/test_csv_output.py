@@ -13,7 +13,13 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from hotelling.csv_writer import RAW_HEADERS, SUMMARY_HEADERS, write_raw_csv, write_summary_csv
+from hotelling.csv_writer import (
+    RAW_HEADERS,
+    SUMMARY_HEADERS,
+    write_final_tick_raw_csv,
+    write_raw_csv,
+    write_summary_csv,
+)
 from hotelling.experiment import Experiment
 from hotelling.statistics import generate_summary_rows
 
@@ -94,6 +100,18 @@ class TestRawCsvCreation(unittest.TestCase):
             with open(path, newline="", encoding="utf-8") as f:
                 for row in csv.DictReader(f):
                     self.assertEqual(row["experiment_name"], "myexp")
+
+    def test_final_tick_raw_csv_only_writes_final_tick_rows(self):
+        """Final-tick raw CSV should keep one row per store for each run."""
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "raw_final_tick.csv")
+            write_final_tick_raw_csv(path, _small_experiment().run())
+            with open(path, newline="", encoding="utf-8") as f:
+                rows = list(csv.DictReader(f))
+
+        self.assertEqual(len(rows), 2)
+        self.assertEqual({int(row["tick"]) for row in rows}, {2})
+        self.assertEqual({int(row["store_id"]) for row in rows}, {0, 1})
 
 
 class TestSummaryCsvCreation(unittest.TestCase):

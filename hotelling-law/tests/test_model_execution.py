@@ -8,6 +8,7 @@ output rows, and keeps stores within market bounds across all ticks.
 import os
 import sys
 import unittest
+from unittest.mock import patch
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -84,6 +85,32 @@ class TestPricing(unittest.TestCase):
         )
         model.run()
         self.assertEqual(model.stores[0].price, -0.5)
+
+    def test_price_plans_are_computed_before_movement_is_applied(self):
+        """Price planning should see the same pre-update positions as movement planning."""
+        model = HotellingModel(
+            market_size=20, num_customers=10, num_stores=2,
+            ticks=1, price=10.0, distance_weight=1.0, random_seed=0,
+        )
+        original_positions = [store.position for store in model.stores]
+        seen_positions = []
+
+        def fake_best_position(store):
+            return store.position + 1
+
+        def fake_best_price(store):
+            seen_positions.append(tuple(s.position for s in model.stores))
+            return store.price
+
+        with patch.object(HotellingModel, "_best_position", side_effect=fake_best_position):
+            with patch.object(HotellingModel, "_best_price", side_effect=fake_best_price):
+                model.run()
+
+        self.assertEqual(seen_positions, [tuple(original_positions), tuple(original_positions)])
+        self.assertEqual(
+            [store.position for store in model.stores],
+            [position + 1 for position in original_positions],
+        )
 
 
 class TestStoreBounds(unittest.TestCase):

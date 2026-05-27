@@ -76,6 +76,17 @@ def write_raw_csv(filepath: str, rows: List[Dict]) -> None:
     write_csv(filepath, rows, RAW_HEADERS)
 
 
+def write_final_tick_raw_csv(filepath: str, rows: List[Dict]) -> None:
+    """Write only rows from the final recorded tick using RAW_HEADERS column order."""
+    if not rows:
+        write_csv(filepath, rows, RAW_HEADERS)
+        return
+
+    final_tick = max(int(row["tick"]) for row in rows)
+    final_rows = [row for row in rows if int(row["tick"]) == final_tick]
+    write_csv(filepath, final_rows, RAW_HEADERS)
+
+
 def write_summary_csv(filepath: str, rows: List[Dict]) -> None:
     """Write summary rows using SUMMARY_HEADERS column order."""
     write_csv(filepath, rows, SUMMARY_HEADERS)
