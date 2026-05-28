@@ -3,23 +3,25 @@
 
 class Store:
     """
-    A store competing for customers on the one-dimensional market line.
+    A store competing for customers on a line or plane.
 
     Each tick a store earns profit based on how many customers choose it, then
-    considers moving left or right to improve its position for the next tick.
+    considers neighbouring patches to improve its position for the next tick.
     """
 
-    def __init__(self, id: int, position: float, price: float):
+    def __init__(self, id: int, position: float, price: float, x_position: float = 0.0):
         """
         Initialise a store with a fixed id, starting position, and price.
 
         Args:
             id: Unique non-negative integer identifier.  Used for tie-breaking.
-            position: Initial location on the market line.
+            position: Initial y-coordinate on the market line or plane.
             price: Starting price charged to customers; changes during a run.
+            x_position: Initial x-coordinate.  Always 0.0 for line layout.
         """
         # Identity and fixed attributes.
         self.id: int = id
+        self.x_position: float = x_position
         self.position: float = position
         self.price: float = price
 

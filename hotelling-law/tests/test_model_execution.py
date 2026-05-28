@@ -96,7 +96,7 @@ class TestPricing(unittest.TestCase):
         seen_positions = []
 
         def fake_best_position(store):
-            return store.position + 1
+            return (store.x_position, store.position + 1)
 
         def fake_best_price(store):
             seen_positions.append(tuple(s.position for s in model.stores))
@@ -150,6 +150,36 @@ class TestStoreBounds(unittest.TestCase):
             pos = float(row["store_position"])
             self.assertGreaterEqual(pos, -market_size / 2.0)
             self.assertLessEqual(pos, market_size / 2.0)
+
+    def test_plane_neighbours_include_four_cardinal_directions(self):
+        """Plane layout should use NetLogo neighbors4 movement candidates."""
+        model = HotellingModel(
+            market_size=4, num_customers=1, num_stores=1,
+            ticks=0, price=10.0, random_seed=0, layout="plane",
+        )
+        self.assertEqual(
+            set(model._neighbour_positions((0, 0))),
+            {(-1, 0), (1, 0), (0, -1), (0, 1)},
+        )
+
+    def test_plane_output_uses_euclidean_distances(self):
+        """Plane output distances should match NetLogo distance semantics."""
+        model = HotellingModel(
+            market_size=10, num_customers=0, num_stores=2,
+            ticks=0, price=10.0, random_seed=0, layout="plane",
+        )
+        model.stores[0].x_position = 3.0
+        model.stores[0].position = 4.0
+        model.stores[1].x_position = 0.0
+        model.stores[1].position = 0.0
+        model._record_output(0)
+
+        row = next(r for r in model.output_rows if r["store_id"] == 0)
+        self.assertEqual(row["store_x_position"], 3.0)
+        self.assertEqual(row["store_y_position"], 4.0)
+        self.assertEqual(row["store_position"], 4.0)
+        self.assertAlmostEqual(row["distance_from_centre"], 5.0)
+        self.assertAlmostEqual(row["average_distance_to_other_stores"], 5.0)
 
 
 class TestDeterminism(unittest.TestCase):

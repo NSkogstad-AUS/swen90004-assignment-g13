@@ -11,6 +11,8 @@ RAW_HEADERS: List[str] = [
     "run_id",
     "tick",
     "store_id",
+    "store_x_position",
+    "store_y_position",
     "store_position",
     "store_price",
     "store_profit",
@@ -74,6 +76,21 @@ NETLOGO_TABLE_HEADERS: List[str] = [
     "max [area-count] of turtles",
 ]
 
+NETLOGO_PLANE_TABLE_HEADERS: List[str] = [
+    "mean [pxcor] of turtles",
+    "standard-deviation [pxcor] of turtles",
+    "min [pxcor] of turtles",
+    "max [pxcor] of turtles",
+    "mean [abs pxcor] of turtles",
+    "standard-deviation [abs pxcor] of turtles",
+    "min [abs pxcor] of turtles",
+    "max [abs pxcor] of turtles",
+    "mean [distancexy 0 0] of turtles",
+    "standard-deviation [distancexy 0 0] of turtles",
+    "min [distancexy 0 0] of turtles",
+    "max [distancexy 0 0] of turtles",
+]
+
 # Convenience alias so callers that only need raw headers can import HEADERS.
 HEADERS = RAW_HEADERS
 
@@ -125,15 +142,23 @@ def _metric_stats(values: List[float]) -> List[float]:
     return [mean(values), _sample_stdev(values), min(values), max(values)]
 
 
-def write_netlogo_table_csv(filepath: str, rows: List[Dict]) -> None:
+def write_netlogo_table_csv(
+    filepath: str,
+    rows: List[Dict],
+    include_plane_metrics: bool = False,
+) -> None:
     """Write final-tick per-run metrics using NetLogo BehaviorSpace-style columns."""
     parent = os.path.dirname(filepath)
     if parent:
         os.makedirs(parent, exist_ok=True)
 
+    headers = NETLOGO_TABLE_HEADERS
+    if include_plane_metrics:
+        headers = NETLOGO_TABLE_HEADERS + NETLOGO_PLANE_TABLE_HEADERS
+
     if not rows:
         with open(filepath, "w", newline="", encoding="utf-8") as f:
-            csv.writer(f).writerow(NETLOGO_TABLE_HEADERS)
+            csv.writer(f).writerow(headers)
         return
 
     final_tick = max(int(row["tick"]) for row in rows)
@@ -148,29 +173,40 @@ def write_netlogo_table_csv(filepath: str, rows: List[Dict]) -> None:
         run_rows = grouped[run_id]
         first = run_rows[0]
         positions = [float(row["store_position"]) for row in run_rows]
+        abs_positions = [abs(position) for position in positions]
         distances_from_centre = [float(row["distance_from_centre"]) for row in run_rows]
         distances_to_others = [
             float(row["average_distance_to_other_stores"]) for row in run_rows
         ]
         profits = [float(row["store_profit"]) for row in run_rows]
         market_shares = [float(row["store_market_share"]) for row in run_rows]
+        x_positions = [float(row["store_x_position"]) for row in run_rows]
 
-        table_rows.append([
+        table_row = [
             run_id,
             first["layout"],
             int(first["num_stores"]),
             first["rules"],
             final_tick + 1,
             *_metric_stats(positions),
-            *_metric_stats(distances_from_centre),
+            *_metric_stats(abs_positions),
             *_metric_stats(distances_to_others),
             *_metric_stats(profits),
             *_metric_stats(market_shares),
-        ])
+        ]
+
+        if include_plane_metrics:
+            table_row.extend([
+                *_metric_stats(x_positions),
+                *_metric_stats([abs(x) for x in x_positions]),
+                *_metric_stats(distances_from_centre),
+            ])
+
+        table_rows.append(table_row)
 
     with open(filepath, "w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
-        writer.writerow(NETLOGO_TABLE_HEADERS)
+        writer.writerow(headers)
         writer.writerows(table_rows)
 
 

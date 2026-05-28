@@ -9,14 +9,13 @@ and explains how it maps conceptually to the original NetLogo model.
 
 ## Baseline Model
 
-Hotelling's Law (1929) describes how competing sellers on a one-dimensional market tend to
-cluster toward the centre over time.  This is sometimes called the **principle of minimum
-differentiation**.
+Hotelling's Law (1929) describes how competing sellers tend to cluster toward the centre
+over time.  This is sometimes called the **principle of minimum differentiation**.
 
-The Python model implements a simplified, one-dimensional version:
+The Python model implements both NetLogo layouts:
 
-- A market line spans from position `0` to `market_size`.
-- Customers are distributed along this line with fixed positions.
+- `line`: consumers occupy the vertical patch line where `x = 0`.
+- `plane`: consumers can occupy every patch in the square market.
 - Stores compete by adjusting their positions each simulation tick.
 - Customers choose the store that minimises their effective cost.
 
@@ -29,7 +28,8 @@ The Python model implements a simplified, one-dimensional version:
 | Attribute           | Type          | Description                                        |
 |---------------------|---------------|----------------------------------------------------|
 | `id`                | `int`         | Unique identifier.                                 |
-| `position`          | `float`       | Fixed location on the market line.                 |
+| `x_position`        | `float`       | Fixed x-coordinate; `0` for line layout.           |
+| `position`          | `float`       | Fixed y-coordinate; kept as the line position.     |
 | `previous_store_id` | `int` / None  | Store chosen last tick; used by loyalty extension. |
 
 Customers do not move.  They select a store every tick based on effective cost.
@@ -38,8 +38,9 @@ Customers do not move.  They select a store every tick based on effective cost.
 
 | Attribute                | Type    | Description                                            |
 |--------------------------|---------|--------------------------------------------------------|
-| `id`                     | `int`   | Unique identifier; used for deterministic tie-breaking.|
-| `position`               | `float` | Current location on the market line.                   |
+| `id`                     | `int`   | Unique identifier.                                      |
+| `x_position`             | `float` | Current x-coordinate; `0` for line layout.             |
+| `position`               | `float` | Current y-coordinate; kept as the line position.       |
 | `price`                  | `float` | Fixed price charged to all customers.                  |
 | `market_share`           | `int`   | Number of customers assigned this tick.                |
 | `assigned_customer_count`| `int`   | Alias for `market_share`; recorded separately in CSV.  |
@@ -60,6 +61,8 @@ Customers do not move.  They select a store every tick based on effective cost.
 | `step_size`             | 1.0       | Maximum movement per store per tick.                     |
 | `random_seed`           | None      | Seed for reproducibility.                                |
 | `customer_distribution` | uniform   | Placement distribution: `uniform` or `clustered`.        |
+| `layout`                | line      | NetLogo layout: `line` or `plane`.                       |
+| `rules`                 | normal    | NetLogo movement/pricing mode.                           |
 | `loyalty_strength`      | 0.0       | Retention factor for loyalty extension (0.0–1.0).        |
 | `loyalty_threshold`     | 10.0      | Absolute cost margin for loyalty check.                  |
 
@@ -74,7 +77,7 @@ Each tick executes in this order:
 1. **Reset store metrics** — `market_share`, `assigned_customer_count`, and `profit` are
    zeroed before any new assignments.
 2. **Assign customers** — each customer computes effective costs for all stores and selects
-   the cheapest option (ties broken by lowest store id).  The customer's `previous_store_id`
+   the cheapest option (ties broken randomly).  The customer's `previous_store_id`
    is updated.
 3. **Calculate profits** — `profit = market_share × price` for each store.
 4. **Record output** — all per-store metrics are written to output rows.  Positions recorded
@@ -85,21 +88,19 @@ Each tick executes in this order:
 ### Effective cost formula
 
 ```
-effective_cost = store.price + distance_weight × |customer.position − store.position|
+effective_cost = store.price + distance_weight × distance(customer, store)
 ```
 
 ### Customer choice rule
 
-Choose the store with the minimum effective cost.  If two or more stores tie, choose the
-one with the lowest `store.id`.  This is deterministic and seed-independent.
+Choose the store with the minimum effective cost.  If two or more stores tie, choose one
+of the tied stores randomly, matching NetLogo's `min-one-of`.
 
 ### Store movement
 
-Each store tests three candidate positions:
-
-- `position − step_size`  (clamped to `0`)
-- `position`              (stay)
-- `position + step_size`  (clamped to `market_size`)
+Each store tests NetLogo `neighbors4` candidate patches.  In `line` layout this reduces
+to the two vertical neighbours on `x = 0`; in `plane` layout it includes the four
+cardinal directions.
 
 For each candidate, the store simulates how many customers it would attract (using current
 positions of all other stores), then moves to the candidate with the highest simulated
@@ -149,15 +150,15 @@ positioned using a Gaussian draw with sigma = `market_size / 12`, clamped to bou
 
 | Concept                  | NetLogo                              | Python implementation              |
 |--------------------------|--------------------------------------|------------------------------------|
-| Market space             | Patch grid (1D strip)                | Continuous float line [0, 100]     |
-| Customer placement       | Random patch selection               | `random.uniform` or Gaussian       |
-| Customer choice          | Minimum travel + price               | Same formula, lowest-id tie-break  |
-| Store movement           | Move toward higher profit            | Single-step local search (±step)   |
+| Market space             | Patch grid (`line` or `plane`)       | Integer patch coordinates          |
+| Customer placement       | Consumer patches                     | Line or plane patch coordinates    |
+| Customer choice          | Minimum travel + price               | Same formula, random tie-break     |
+| Store movement           | `neighbors4` candidates              | Cardinal neighbour local search    |
 | Profit                   | Customers served × price             | Same formula                       |
 | Randomness               | NetLogo PRNG                         | Python `random.Random`             |
-| Update order             | Simultaneous (ask turtles)           | Sequential by store id             |
+| Update order             | Task-based simultaneous decisions    | Same decision timing               |
 
 **Note on numerical comparison:** Because the two implementations use different random
-number generators and potentially different update ordering, exact tick-by-tick numerical
+number generators and execution engines, exact tick-by-tick numerical
 agreement is not expected.  Comparison should focus on aggregate and final-state statistics
 such as mean final store position, average inter-store distance, and convergence speed.

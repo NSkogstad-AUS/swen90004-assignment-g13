@@ -2,10 +2,11 @@
 Command-line entry point for the Hotelling's Law simulation.
 
 Usage:
-    python run.py baseline   Run the baseline two-store experiment.
+    python run.py baseline   Run the NetLogo line baseline experiment.
+    python run.py plane      Run the NetLogo plane baseline experiment.
     python run.py sweep      Run the replication parameter sweep.
     python run.py loyalty    Run the customer loyalty extension experiment.
-    python run.py all        Run all three experiments in sequence.
+    python run.py all        Run all experiments in sequence.
     python run.py test       Discover and run all unit tests in tests/.
 """
 
@@ -18,7 +19,7 @@ import sys
 _PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, _PROJECT_ROOT)
 
-COMMANDS = ("baseline", "sweep", "loyalty", "all", "test")
+COMMANDS = ("baseline", "plane", "sweep", "loyalty", "all", "test")
 
 
 def main() -> None:
@@ -28,12 +29,13 @@ def main() -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=(
             "commands:\n"
-            "  baseline  Baseline two-store model, 30 runs (outputs/baseline_*.csv)\n"
+            "  baseline  NetLogo line baseline, 30 runs (outputs/baseline_*.csv)\n"
+            "  plane     NetLogo plane baseline, 30 runs (outputs/plane_baseline_*.csv)\n"
             "  sweep     Parameter sweep: num_stores, distance_weight, distribution\n"
             "            (outputs/replication_sweep_*.csv)\n"
             "  loyalty   Customer loyalty extension experiment\n"
             "            (outputs/extension_loyalty_*.csv)\n"
-            "  all       Run all three experiments\n"
+            "  all       Run all experiments\n"
             "  test      Discover and run all unit tests\n"
         ),
     )
@@ -47,6 +49,10 @@ def main() -> None:
     if args.command in ("baseline", "all"):
         from experiments.baseline import run_baseline
         run_baseline()
+
+    if args.command in ("plane", "all"):
+        from experiments.plane_baseline import run_plane_baseline
+        run_plane_baseline()
 
     if args.command in ("sweep", "all"):
         from experiments.replication_sweep import run_sweep

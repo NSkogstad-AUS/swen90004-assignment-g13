@@ -14,6 +14,7 @@ import unittest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from hotelling.csv_writer import (
+    NETLOGO_PLANE_TABLE_HEADERS,
     NETLOGO_TABLE_HEADERS,
     RAW_HEADERS,
     SUMMARY_HEADERS,
@@ -86,6 +87,8 @@ class TestRawCsvCreation(unittest.TestCase):
                     int(row["tick"])
                     int(row["store_id"])
                     int(row["run_id"])
+                    float(row["store_x_position"])
+                    float(row["store_y_position"])
                     float(row["store_position"])
                     float(row["store_price"])
                     float(row["store_profit"])
@@ -130,6 +133,27 @@ class TestRawCsvCreation(unittest.TestCase):
         self.assertEqual(rows[0]["[step]"], "3")
         float(rows[0]["mean [pycor] of turtles"])
         float(rows[0]["standard-deviation [area-count] of turtles"])
+
+    def test_netlogo_table_csv_can_include_plane_reporters(self):
+        """Plane table CSV should include pxcor and distancexy reporter columns."""
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "netlogo_plane_table.csv")
+            write_netlogo_table_csv(
+                path,
+                _small_experiment().run(),
+                include_plane_metrics=True,
+            )
+            with open(path, newline="", encoding="utf-8") as f:
+                reader = csv.DictReader(f)
+                rows = list(reader)
+
+        self.assertEqual(
+            reader.fieldnames,
+            NETLOGO_TABLE_HEADERS + NETLOGO_PLANE_TABLE_HEADERS,
+        )
+        self.assertEqual(len(rows), 1)
+        float(rows[0]["mean [pxcor] of turtles"])
+        float(rows[0]["mean [distancexy 0 0] of turtles"])
 
 
 class TestSummaryCsvCreation(unittest.TestCase):

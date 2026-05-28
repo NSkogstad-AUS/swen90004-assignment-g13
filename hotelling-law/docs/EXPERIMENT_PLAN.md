@@ -26,31 +26,32 @@ replicates for simple descriptive statistics without prohibitive compute time.
 **File:** `experiments/baseline.py`
 
 **Purpose:**
-Establish a reference behaviour for the default two-store model.  This is the primary
+Establish a reference behaviour for the NetLogo line configuration.  This is the primary
 basis for comparison against the NetLogo model.
 
 **Configuration:**
 
 | Parameter               | Value    |
 |-------------------------|----------|
-| `num_stores`            | 2        |
-| `num_customers`         | 100      |
-| `market_size`           | 100      |
+| `num_stores`            | 3        |
+| `num_customers`         | 41       |
+| `market_size`           | 40       |
 | `ticks`                 | 100      |
 | `price`                 | 10.0     |
-| `distance_weight`       | 1.0      |
 | `step_size`             | 1.0      |
-| `customer_distribution` | uniform  |
-| `loyalty_strength`      | 0.0      |
+| `layout`                | line     |
+| `rules`                 | normal   |
 | `num_runs`              | 30       |
 
 **Expected behaviour:**
-Both stores should converge toward the centre of the market (position 50) over time,
+Stores should converge toward the centre of the market (position 0) over time,
 consistent with Hotelling's principle of minimum differentiation.
 
 **Outputs:**
 - `outputs/baseline_raw.csv` — one row per store per tick per run
+- `outputs/baseline_raw_2.csv` — one final-tick row per store per run
 - `outputs/baseline_summary.csv` — final-tick statistics across 30 runs
+- `outputs/baseline_summary_netlogo.csv` — NetLogo BehaviorSpace-style table
 
 ---
 

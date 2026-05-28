@@ -1,7 +1,8 @@
 """Core simulation model for Hotelling's Law."""
 
 import random
-from typing import Dict, List, Optional
+from math import hypot
+from typing import Dict, List, Optional, Tuple
 
 from hotelling.customer import Customer
 from hotelling.store import Store
@@ -9,21 +10,21 @@ from hotelling.store import Store
 
 class HotellingModel:
     """
-    Simulates Hotelling's Law on a one-dimensional market line.
+    Simulates Hotelling's Law on a one-dimensional line or two-dimensional plane.
 
     Replicates the behaviour of the NetLogo Hotelling's Law model (Ottino, Stonedahl &
-    Wilensky, 2009) using the 'line' layout.  Each tick, stores independently optimise
-    their position (left/stay/right) and then their price (down/stay/up) to maximise
+    Wilensky, 2009) using the 'line' and 'plane' layouts.  Each tick, stores
+    independently optimise their position and price (down/stay/up) to maximise
     revenue.  Customers choose the store with the lowest sum of price and distance.
 
     Assumptions:
-    - Customer positions are integer-valued, matching NetLogo's discrete patches.
+    - Customer positions are integer-valued patch coordinates.
     - Customer positions are fixed throughout a run.
     - Position and price updates are simultaneous: all stores compute their new
       position/price before any store moves, matching the NetLogo task-based approach.
     - Tie-breaking in customer assignment is random, matching NetLogo's min-one-of.
-    - The position lookahead uses current prices; the price lookahead uses the updated
-      positions, matching the NetLogo tick order.
+    - The position and price lookaheads are both computed before either change is
+      applied, matching NetLogo's task-based go procedure.
     - A store with zero market share must move (status quo excluded from candidates),
       matching NetLogo's "only consider status quo if area-count > 0" rule.
     - Loyalty applies only from the second tick onward (no previous_store_id on tick 0).
@@ -82,9 +83,9 @@ class HotellingModel:
         self.price_step: float = price_step
         self.distance_weight: float = distance_weight
         self.step_size: float = step_size
-        # Model layout: 'line' (1D) or 'plane' (2D). Currently behaviour is 1D;
-        # 'plane' is accepted for compatibility with NetLogo inputs but treated
-        # as 'line' in the current implementation.
+        if layout not in ("line", "plane"):
+            raise ValueError(f"Unknown layout: '{layout}'")
+        # Model layout: 'line' uses pxcor=0 and varies pycor; 'plane' uses all patches.
         self.layout: str = layout
         # Rules control whether stores may move and/or change prices:
         # 'normal' -> both; 'moving-only' -> only move; 'pricing-only' -> only price.
@@ -120,14 +121,14 @@ class HotellingModel:
         patches.  Raises ValueError for unknown distribution names.
         """
         if self.customer_distribution == "uniform":
-            patch_positions = self._patch_positions()
-            if self.num_customers == len(patch_positions):
+            consumer_patches = self._consumer_patches()
+            if self.num_customers == len(consumer_patches):
                 return [
-                    Customer(id=i, position=position)
-                    for i, position in enumerate(patch_positions)
+                    self._customer_from_patch(i, patch)
+                    for i, patch in enumerate(consumer_patches)
                 ]
             return [
-                Customer(id=i, position=self._rng.choice(patch_positions))
+                self._customer_from_patch(i, self._rng.choice(consumer_patches))
                 for i in range(self.num_customers)
             ]
         if self.customer_distribution == "clustered":
@@ -150,10 +151,16 @@ class HotellingModel:
         ]
         customers = []
         for i in range(self.num_customers):
-            centre = self._rng.choice(centres)
-            pos = round(self._rng.gauss(centre, sigma))
-            pos = max(self.market_min, min(self.market_max, pos))
-            customers.append(Customer(id=i, position=pos))
+            y_centre = self._rng.choice(centres)
+            y_pos = round(self._rng.gauss(y_centre, sigma))
+            y_pos = max(self.market_min, min(self.market_max, y_pos))
+            if self.layout == "plane":
+                x_centre = self._rng.choice(centres)
+                x_pos = round(self._rng.gauss(x_centre, sigma))
+                x_pos = max(self.market_min, min(self.market_max, x_pos))
+            else:
+                x_pos = 0
+            customers.append(Customer(id=i, position=y_pos, x_position=x_pos))
         return customers
 
     def _create_stores(self) -> List[Store]:
@@ -164,6 +171,12 @@ class HotellingModel:
         the market bounds).  Multiple stores may share an initial position.  All stores
         start with the same initial price; prices diverge dynamically each tick.
         """
+        if self.layout == "plane":
+            return [
+                self._store_from_patch(i, self._rng.choice(self._consumer_patches()))
+                for i in range(self.num_stores)
+            ]
+
         return [
             Store(
                 id=i,
@@ -176,6 +189,24 @@ class HotellingModel:
     def _patch_positions(self) -> List[int]:
         """Return all integer patch coordinates in the market."""
         return list(range(self.market_min, self.market_max + 1))
+
+    def _consumer_patches(self) -> List[Tuple[int, int]]:
+        """Return NetLogo-equivalent consumer patch coordinates for the layout."""
+        if self.layout == "line":
+            return [(0, y) for y in self._patch_positions()]
+        return [
+            (x, y)
+            for x in self._patch_positions()
+            for y in self._patch_positions()
+        ]
+
+    def _customer_from_patch(self, id: int, patch: Tuple[int, int]) -> Customer:
+        x, y = patch
+        return Customer(id=id, position=y, x_position=x)
+
+    def _store_from_patch(self, id: int, patch: Tuple[int, int]) -> Store:
+        x, y = patch
+        return Store(id=id, position=y, x_position=x, price=self.price)
 
     # ------------------------------------------------------------------
     # Simulation loop
@@ -210,23 +241,43 @@ class HotellingModel:
         new_positions = self._planned_positions()
         new_prices = self._planned_prices()
         for store, pos in zip(self.stores, new_positions):
-            store.position = pos
+            self._set_store_coords(store, pos)
         for store, price in zip(self.stores, new_prices):
             store.price = price
 
     # ------------------------------------------------------------------
     # Customer assignment
+
+    def _customer_coords(self, customer: Customer) -> Tuple[float, float]:
+        return (customer.x_position, customer.position)
+
+    def _store_coords(self, store: Store) -> Tuple[float, float]:
+        return (store.x_position, store.position)
+
+    def _set_store_coords(self, store: Store, coords: Tuple[float, float]) -> None:
+        store.x_position, store.position = coords
+
+    def _distance_between(
+        self,
+        first: Tuple[float, float],
+        second: Tuple[float, float],
+    ) -> float:
+        return hypot(first[0] - second[0], first[1] - second[1])
     # ------------------------------------------------------------------
 
     def _effective_cost(self, customer: Customer, store: Store) -> float:
         """
         Return the effective cost for a customer visiting a store.
 
-        Formula: store.price + distance_weight * |customer.position - store.position|
+        Formula: store.price + distance_weight * distance(customer, store)
         With distance_weight = 1.0 (default) this matches the NetLogo formula:
         effective_cost = price + distance.
         """
-        return store.price + self.distance_weight * abs(customer.position - store.position)
+        return (
+            store.price
+            + self.distance_weight
+            * self._distance_between(self._customer_coords(customer), self._store_coords(store))
+        )
 
     def _assign_customers(self) -> None:
         """
@@ -244,8 +295,8 @@ class HotellingModel:
         Return the store a customer will choose this tick.
 
         When loyalty_strength = 0 or the customer has no previous store, selects the
-        store with the lowest effective cost.  Ties are broken by the lowest store id
-        (NetLogo uses random tie-breaking — a documented difference).
+        store with the lowest effective cost.  Ties are broken randomly, matching
+        NetLogo's min-one-of behaviour.
 
         When loyalty_strength > 0 and the customer has a previous store:
           1. Find the best store by raw effective cost.
@@ -305,7 +356,7 @@ class HotellingModel:
     # Store position optimisation
     # ------------------------------------------------------------------
 
-    def _planned_positions(self) -> List[float]:
+    def _planned_positions(self) -> List[Tuple[float, float]]:
         """
         Return each store's planned next position.
 
@@ -315,12 +366,12 @@ class HotellingModel:
         """
         # If the rules prohibit moving, skip position updates.
         if self.rules == "pricing-only":
-            return [store.position for store in self.stores]
+            return [self._store_coords(store) for store in self.stores]
         return [self._best_position(store) for store in self.stores]
 
-    def _best_position(self, store: Store) -> float:
+    def _best_position(self, store: Store) -> Tuple[float, float]:
         """
-        Return the position with the highest simulated revenue, price held fixed.
+        Return the coordinates with the highest simulated revenue, price held fixed.
 
         Matches the NetLogo new-location-task logic:
         - If the store had customers this tick (market_share > 0), the current position
@@ -330,29 +381,49 @@ class HotellingModel:
           is chosen randomly on ties.
         Candidates are clamped to the market bounds.
         """
-        stay = round(store.position)
-        left = max(self.market_min, min(self.market_max, round(store.position - self.step_size)))
-        right = max(self.market_min, min(self.market_max, round(store.position + self.step_size)))
+        stay = self._store_coords(store)
+        neighbours = self._neighbour_positions(stay)
+        self._rng.shuffle(neighbours)
 
         if store.market_share > 0:
             # Status quo included; it wins ties (placed first, stable sort equivalent).
-            candidates = list(dict.fromkeys([stay, left, right]))  # deduplicate, keep order
+            candidates = [stay] + neighbours
         else:
-            # Must move; shuffle so neither direction is favoured when they tie.
-            move_candidates = list({left, right} - {stay})
-            if not move_candidates:
-                move_candidates = [stay]  # at boundary with no room to move
-            self._rng.shuffle(move_candidates)
-            candidates = move_candidates
+            # Must move; shuffled neighbours avoid favouring one direction on ties.
+            candidates = neighbours if neighbours else [stay]
 
         best_pos = stay
         best_rev = float("-inf")
         for pos in candidates:
             rev = self._simulated_revenue(store, pos, store.price)
-            if rev > best_rev or (rev == best_rev and store.market_share > 0 and pos == stay):
+            if rev > best_rev:
                 best_rev = rev
                 best_pos = pos
         return best_pos
+
+    def _neighbour_positions(self, coords: Tuple[float, float]) -> List[Tuple[float, float]]:
+        """Return legal NetLogo neighbors4 candidate patches for the current layout."""
+        x, y = coords
+        step = self.step_size
+        if self.layout == "line":
+            raw = [(0, y - step), (0, y + step)]
+        else:
+            raw = [
+                (x - step, y),
+                (x + step, y),
+                (x, y - step),
+                (x, y + step),
+            ]
+
+        neighbours: List[Tuple[float, float]] = []
+        for raw_x, raw_y in raw:
+            candidate = (
+                max(self.market_min, min(self.market_max, round(raw_x))),
+                max(self.market_min, min(self.market_max, round(raw_y))),
+            )
+            if candidate != coords and candidate not in neighbours:
+                neighbours.append(candidate)
+        return neighbours
 
     # ------------------------------------------------------------------
     # Store price optimisation
@@ -388,7 +459,7 @@ class HotellingModel:
             store.price + self.price_step,
         ]
         revenues = [
-            self._simulated_revenue(store, store.position, p) for p in candidates
+            self._simulated_revenue(store, self._store_coords(store), p) for p in candidates
         ]
 
         # Emergency: all revenues zero, so drop price to attract customers.
@@ -408,7 +479,10 @@ class HotellingModel:
     # ------------------------------------------------------------------
 
     def _simulated_revenue(
-        self, moving_store: Store, candidate_pos: float, candidate_price: float
+        self,
+        moving_store: Store,
+        candidate_pos: Tuple[float, float],
+        candidate_price: float,
     ) -> float:
         """
         Estimate the revenue moving_store would earn if at candidate_pos with candidate_price.
@@ -424,7 +498,8 @@ class HotellingModel:
         for customer in self.customers:
             candidate_cost = (
                 candidate_price
-                + self.distance_weight * abs(customer.position - candidate_pos)
+                + self.distance_weight
+                * self._distance_between(self._customer_coords(customer), candidate_pos)
             )
             # Collect (cost, store_id) for all stores, with moving_store at its candidate.
             store_costs = [(candidate_cost, moving_store.id)]
@@ -457,11 +532,11 @@ class HotellingModel:
         num_stores = len(self.stores)
 
         for store in self.stores:
-            distance_from_centre = abs(store.position - centre)
+            distance_from_centre = self._distance_between(self._store_coords(store), (centre, centre))
 
             if num_stores > 1:
                 avg_distance_to_others = sum(
-                    abs(store.position - other.position)
+                    self._distance_between(self._store_coords(store), self._store_coords(other))
                     for other in self.stores
                     if other.id != store.id
                 ) / (num_stores - 1)
@@ -471,6 +546,8 @@ class HotellingModel:
             self.output_rows.append({
                 "tick": tick,
                 "store_id": store.id,
+                "store_x_position": store.x_position,
+                "store_y_position": store.position,
                 "store_position": store.position,
                 "store_price": round(store.price, 6),
                 "store_profit": round(store.profit, 6),

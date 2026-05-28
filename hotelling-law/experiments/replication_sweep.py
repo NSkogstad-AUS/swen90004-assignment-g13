@@ -78,8 +78,8 @@ def run_sweep() -> None:
         scenario_name = _make_scenario_name(num_stores, layout, rules)
         print(f"[sweep] Scenario {idx}/{total}: {scenario_name} ...")
 
-        # Model currently supports 1D behaviour; we accept `layout` for compatibility
-        # and pass `rules` to control whether stores may move and/or change prices.
+        # Pass `layout` and `rules` through to exercise the NetLogo line/plane
+        # and movement/pricing controls.
         experiment = Experiment(
             experiment_name=EXPERIMENT_NAME,
             num_runs=NUM_RUNS,

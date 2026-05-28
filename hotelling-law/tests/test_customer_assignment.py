@@ -44,6 +44,17 @@ class TestEffectiveCost(unittest.TestCase):
         self.assertAlmostEqual(model._effective_cost(model.customers[0], model.stores[0]),
                                model.price)
 
+    def test_plane_effective_cost_uses_euclidean_distance(self):
+        """Plane layout should use NetLogo-style Euclidean patch distance."""
+        model = self._model(layout="plane")
+        customer = model.customers[0]
+        customer.x_position = 3.0
+        customer.position = 4.0
+        store = model.stores[0]
+        store.x_position = 0.0
+        store.position = 0.0
+        self.assertAlmostEqual(model._effective_cost(customer, store), 15.0)
+
 
 class TestBaselineAssignment(unittest.TestCase):
     """Tests for customer assignment without loyalty."""
@@ -88,6 +99,37 @@ class TestBaselineAssignment(unittest.TestCase):
             s.reset_metrics()
         model._assign_customers()
         self.assertEqual(model.stores[1].market_share, 1)
+
+    def test_plane_customer_assignment_uses_x_and_y_coordinates(self):
+        """Plane assignment should distinguish stores with the same y but different x."""
+        model = HotellingModel(
+            market_size=20, num_customers=1, num_stores=2,
+            ticks=1, price=10.0, distance_weight=1.0, random_seed=0,
+            layout="plane",
+        )
+        model.stores[0].x_position = -5.0
+        model.stores[0].position = 0.0
+        model.stores[1].x_position = 5.0
+        model.stores[1].position = 0.0
+        model.customers[0].x_position = 4.0
+        model.customers[0].position = 0.0
+
+        for s in model.stores:
+            s.reset_metrics()
+        model._assign_customers()
+
+        self.assertEqual(model.stores[0].market_share, 0)
+        self.assertEqual(model.stores[1].market_share, 1)
+
+    def test_plane_full_grid_has_one_customer_per_patch_when_requested(self):
+        """Plane layout should support all patches as consumers like NetLogo."""
+        model = HotellingModel(
+            market_size=4, num_customers=25, num_stores=1,
+            ticks=0, price=10.0, random_seed=0, layout="plane",
+        )
+        coords = {(customer.x_position, customer.position) for customer in model.customers}
+        expected = {(x, y) for x in range(-2, 3) for y in range(-2, 3)}
+        self.assertEqual(coords, expected)
 
     def test_tie_broken_randomly(self):
         """When effective costs are equal exactly one store wins (chosen at random)."""
