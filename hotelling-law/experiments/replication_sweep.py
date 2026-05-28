@@ -7,8 +7,7 @@ Purpose:
     clustering, market share, and profit change as parameters change.
 
 Swept parameters:
-    num_stores:            2, 4, 6
-    layout:                "plane", "line"
+    num_stores:            2, 3, 4, 6
     rules:                 "normal", "moving-only", "pricing-only"
 
 For each combination: 30 independent runs, 100 ticks each.
@@ -39,47 +38,47 @@ BASE_SEED = 200
 TICKS = 100
 
 # --- Fixed parameters (held constant while others are swept) ---
-MARKET_SIZE = 100
-NUM_CUSTOMERS = 101
+MARKET_SIZE = 40
+NUM_CUSTOMERS = 41
 PRICE = 10.0
 STEP_SIZE = 1.0
 PRICE_STEP = 1.0
 DISTANCE_WEIGHT = 1.0
 LOYALTY_STRENGTH = 0.0
 LOYALTY_THRESHOLD = 10.0
+LAYOUT = "line"
 
 # --- Swept parameter values (aligned with NetLogo controls) ---
-NUM_STORES_VALUES = [2, 4, 6]
-LAYOUT_VALUES = ["plane", "line"]
+NUM_STORES_VALUES = [2, 3, 4, 6]
 RULES_VALUES = ["normal", "moving-only", "pricing-only"]
 
 
-def _make_scenario_name(num_stores: int, layout: str, rules: str) -> str:
+def _make_scenario_name(num_stores: int, rules: str) -> str:
     """Return a compact scenario label encoding the swept parameters."""
-    return f"stores{num_stores}_layout{layout}_rules{rules}"
+    return f"layout{LAYOUT}_stores{num_stores}_rules{rules}"
 
 
 def run_sweep() -> None:
     """
     Run all parameter sweep scenarios and write raw and summary CSV files.
 
-    Iterates over the full factorial combination of num_stores, layout,
-    and rules choices.  All results are concatenated into a single raw CSV
+    Iterates over the full factorial combination of num_stores and rules
+    choices.  All results are concatenated into a single raw CSV
     and a single summary CSV, distinguished by experiment_name and scenario_name.
     """
     all_raw: List[Dict] = []
     all_summary: List[Dict] = []
 
-    # Full factorial sweep over num_stores, layout, and rules.
-    scenarios = list(product(NUM_STORES_VALUES, LAYOUT_VALUES, RULES_VALUES))
+    # Full factorial sweep over num_stores and rules for the NetLogo line layout.
+    scenarios = list(product(NUM_STORES_VALUES, RULES_VALUES))
     total = len(scenarios)
 
-    for idx, (num_stores, layout, rules) in enumerate(scenarios, start=1):
-        scenario_name = _make_scenario_name(num_stores, layout, rules)
+    for idx, (num_stores, rules) in enumerate(scenarios, start=1):
+        scenario_name = _make_scenario_name(num_stores, rules)
         print(f"[sweep] Scenario {idx}/{total}: {scenario_name} ...")
 
-        # Pass `layout` and `rules` through to exercise the NetLogo line/plane
-        # and movement/pricing controls.
+        # Keep layout fixed to the NetLogo line baseline and vary only the
+        # original NetLogo controls selected for sensitivity analysis.
         experiment = Experiment(
             experiment_name=EXPERIMENT_NAME,
             num_runs=NUM_RUNS,
@@ -95,7 +94,7 @@ def run_sweep() -> None:
             customer_distribution="uniform",
             loyalty_strength=LOYALTY_STRENGTH,
             loyalty_threshold=LOYALTY_THRESHOLD,
-            layout=layout,
+            layout=LAYOUT,
             rules=rules,
         )
         raw_rows = experiment.run()
