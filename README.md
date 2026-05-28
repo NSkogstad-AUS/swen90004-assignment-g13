@@ -42,6 +42,7 @@ python3 run.py plane      # NetLogo-aligned plane baseline
 python3 run.py sweep      # sensitivity sweep
 python3 run.py loyalty    # customer loyalty extension
 python3 run.py all        # run baseline, plane, sweep, and loyalty
+python3 run.py plots      # generate SVG plots from outputs/*.csv
 python3 run.py test       # run unit tests
 ```
 
@@ -135,6 +136,12 @@ The configurable runner writes files using the selected prefix:
 <prefix>_raw_2.csv
 <prefix>_summary.csv
 <prefix>_summary_netlogo.csv
+```
+
+Plot generation writes SVG files to:
+
+```text
+hotelling-law/outputs/plots/
 ```
 
 Output meanings:
@@ -346,4 +353,35 @@ Or:
 ```bash
 cd hotelling-law
 python3 -m unittest discover -s tests -v
+```
+
+## Plot Generation
+
+Generate plots from the standard experiment outputs:
+
+```bash
+cd hotelling-law
+python3 run.py plots
+```
+
+Or from the repo root:
+
+```bash
+python3 plot_results.py --experiment all
+```
+
+The plotting CLI accepts:
+
+```text
+--experiment    baseline | plane | sweep | loyalty | all
+--input-dir     folder containing CSV outputs
+--output-dir    folder for generated SVG files
+```
+
+Current plot types:
+
+```text
+baseline / plane: mean store position, profit, and distance-from-centre by tick
+sweep:            bar charts of final summary metrics by scenario
+loyalty:          line charts of final summary metrics by loyalty_strength
 ```

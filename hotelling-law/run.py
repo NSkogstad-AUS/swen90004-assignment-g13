@@ -7,6 +7,7 @@ Usage:
     python run.py sweep      Run the replication parameter sweep.
     python run.py loyalty    Run the customer loyalty extension experiment.
     python run.py all        Run all experiments in sequence.
+    python run.py plots      Generate SVG plots from CSV outputs.
     python run.py test       Discover and run all unit tests in tests/.
 """
 
@@ -19,7 +20,7 @@ import sys
 _PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, _PROJECT_ROOT)
 
-COMMANDS = ("baseline", "plane", "sweep", "loyalty", "all", "test")
+COMMANDS = ("baseline", "plane", "sweep", "loyalty", "all", "plots", "test")
 
 
 def main() -> None:
@@ -31,11 +32,13 @@ def main() -> None:
             "commands:\n"
             "  baseline  NetLogo line baseline, 30 runs (outputs/baseline_*.csv)\n"
             "  plane     NetLogo plane baseline, 30 runs (outputs/plane_baseline_*.csv)\n"
-            "  sweep     Parameter sweep: num_stores, distance_weight, distribution\n"
+            "  sweep     Parameter sweep: num_stores and rules\n"
             "            (outputs/replication_sweep_*.csv)\n"
             "  loyalty   Customer loyalty extension experiment\n"
             "            (outputs/extension_loyalty_*.csv)\n"
             "  all       Run all experiments\n"
+            "  plots     Generate SVG plots from current CSV outputs\n"
+            "            (outputs/plots/*.svg)\n"
             "  test      Discover and run all unit tests\n"
         ),
     )
@@ -44,6 +47,18 @@ def main() -> None:
 
     if args.command == "test":
         _run_tests()
+        return
+
+    if args.command == "plots":
+        from hotelling.plotting import generate_plots
+
+        generated = generate_plots()
+        if not generated:
+            raise SystemExit(
+                "No plots were generated. Run the experiments first so outputs/*.csv exist."
+            )
+        for path in generated:
+            print(f"[plots] wrote: {path}")
         return
 
     if args.command in ("baseline", "all"):
