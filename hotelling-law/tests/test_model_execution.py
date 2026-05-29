@@ -112,6 +112,17 @@ class TestPricing(unittest.TestCase):
             [position + 1 for position in original_positions],
         )
 
+    def test_price_ties_prefer_lower_candidate_order(self):
+        """Equal simulated revenues should keep the first NetLogo-style price candidate."""
+        model = HotellingModel(
+            market_size=20, num_customers=1, num_stores=1,
+            ticks=0, price=10.0, price_step=1.0, random_seed=0,
+        )
+        store = model.stores[0]
+
+        with patch.object(HotellingModel, "_simulated_revenue", return_value=5.0):
+            self.assertEqual(model._best_price(store), 9.0)
+
 
 class TestStoreBounds(unittest.TestCase):
     """Tests that store positions stay within centered market bounds after movement."""

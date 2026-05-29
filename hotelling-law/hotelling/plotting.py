@@ -39,12 +39,13 @@ LOYALTY_METRICS = (
     "store_profit",
     "distance_from_centre",
     "average_distance_to_other_stores",
-    "store_market_share",
+    "market_share_variation",
 )
 METRIC_LABELS = {
     "store_position": "Mean store position",
     "store_profit": "Mean store profit",
     "store_market_share": "Mean store market share",
+    "market_share_variation": "Market share variation",
     "distance_from_centre": "Mean distance from centre",
     "average_distance_to_other_stores": "Mean distance to other stores",
 }

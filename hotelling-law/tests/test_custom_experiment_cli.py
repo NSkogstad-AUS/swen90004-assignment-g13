@@ -62,6 +62,49 @@ class TestCustomExperimentCli(unittest.TestCase):
             self.assertEqual(rows[0]["number-of-stores"], "2")
             self.assertEqual(rows[0]["[step]"], "2")
 
+    def test_custom_cli_accepts_loyalty_parameters(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    os.fspath(SCRIPT),
+                    "--layout",
+                    "line",
+                    "--rules",
+                    "normal",
+                    "--num-stores",
+                    "3",
+                    "--steps",
+                    "2",
+                    "--runs",
+                    "1",
+                    "--loyalty-strength",
+                    "0.75",
+                    "--loyalty-threshold",
+                    "20",
+                    "--output-dir",
+                    tmp,
+                    "--output-prefix",
+                    "loyalty_smoke",
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+
+            self.assertIn("[custom] loyalty str:   0.75", result.stdout)
+            self.assertIn("[custom] loyalty thr:   20.0", result.stdout)
+
+            raw_path = Path(tmp) / "loyalty_smoke_raw.csv"
+            self.assertTrue(raw_path.exists(), raw_path)
+
+            with raw_path.open(newline="", encoding="utf-8") as f:
+                rows = list(csv.DictReader(f))
+
+            self.assertEqual(len(rows), 6)
+            self.assertTrue(all(row["loyalty_strength"] == "0.75" for row in rows))
+            self.assertTrue(all(row["loyalty_threshold"] == "20.0" for row in rows))
+
 
 if __name__ == "__main__":
     unittest.main()

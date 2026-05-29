@@ -112,10 +112,10 @@ def _write_sweep_summary_csv(path: Path) -> None:
 
 def _write_loyalty_summary_csv(path: Path) -> None:
     rows = []
-    for loyalty_strength, profit, distance, spacing, share in (
-        (0.0, 20.0, 4.0, 8.0, 50.0),
-        (0.5, 18.0, 5.0, 9.0, 50.0),
-        (0.75, 17.0, 5.5, 9.5, 50.0),
+    for loyalty_strength, profit, distance, spacing, share, share_variation in (
+        (0.0, 20.0, 4.0, 8.0, 50.0, 6.0),
+        (0.5, 18.0, 5.0, 9.0, 50.0, 4.0),
+        (0.75, 17.0, 5.5, 9.5, 50.0, 2.0),
     ):
         rows.extend(
             [
@@ -167,6 +167,18 @@ def _write_loyalty_summary_csv(path: Path) -> None:
                     "maximum": str(share),
                     "run_count": "30",
                 },
+                {
+                    "experiment_name": "extension_loyalty",
+                    "scenario_name": f"loyalty_{loyalty_strength}",
+                    "parameter_name": "loyalty_strength",
+                    "parameter_value": str(loyalty_strength),
+                    "metric_name": "market_share_variation",
+                    "mean": str(share_variation),
+                    "standard_deviation": "0.5",
+                    "minimum": str(share_variation - 0.5),
+                    "maximum": str(share_variation + 0.5),
+                    "run_count": "30",
+                },
             ]
         )
     write_summary_csv(os.fspath(path), rows)
@@ -193,6 +205,7 @@ class TestPlotGeneration(unittest.TestCase):
             self.assertTrue((output_dir / "baseline_mean_store_position_by_tick.svg").exists())
             self.assertTrue((output_dir / "replication_sweep_store_profit.svg").exists())
             self.assertTrue((output_dir / "extension_loyalty_store_profit.svg").exists())
+            self.assertTrue((output_dir / "extension_loyalty_market_share_variation.svg").exists())
 
             sample_svg = (output_dir / "baseline_mean_store_position_by_tick.svg").read_text(
                 encoding="utf-8"

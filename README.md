@@ -51,6 +51,7 @@ Run configurable one-off experiments from the repo root:
 ```bash
 python3 run_custom_experiment.py --layout line --rules moving-only --num-stores 4 --steps 100 --runs 30
 python3 run_custom_experiment.py --layout plane --rules pricing-only --num-stores 3 --steps 50 --runs 10
+python3 run_custom_experiment.py --layout line --num-stores 3 --steps 100 --runs 30 --loyalty-strength 0.75 --loyalty-threshold 20 --output-prefix loyalty_example
 ```
 
 The configurable runner accepts:
@@ -64,8 +65,18 @@ The configurable runner accepts:
 --market-size    default 40, matching NetLogo -20..20
 --num-customers  optional override
 --base-seed      first random seed
+--loyalty-strength  customer loyalty weight, default 0.0
+--loyalty-threshold switching margin for loyalty, default 10.0
 --output-prefix  optional output file prefix
 --output-dir     optional output folder
+```
+
+Use the loyalty flags when you want quick extension examples without editing `experiments/extension_loyalty.py`.
+
+Run a loyalty sweep that writes one combined summary CSV and matching line plots:
+
+```bash
+python3 run_loyalty_examples.py --num-stores 3 --steps 100 --runs 30 --loyalty-threshold 20
 ```
 
 If `--num-customers` is omitted, the script uses NetLogo-aligned defaults:

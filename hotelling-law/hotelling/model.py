@@ -448,7 +448,8 @@ class HotellingModel:
         revenue, holding the store's current position fixed.
 
         Matches the NetLogo new-price-task logic:
-        - Status quo wins ties (equivalent to NetLogo's sort-by stability).
+        - Candidate order is lower, current, higher price, so equal simulated
+          revenues keep the first candidate in that order.
         - Emergency procedure: if all candidate prices yield zero revenue and the
           current price lowers by price_step.  This prevents stores from being
           permanently stuck with zero market share.
@@ -466,10 +467,10 @@ class HotellingModel:
         if all(r == 0.0 for r in revenues):
             return store.price - self.price_step
 
-        best_price = store.price
+        best_price = candidates[0]
         best_rev = float("-inf")
         for price, rev in zip(candidates, revenues):
-            if rev > best_rev or (rev == best_rev and price == store.price):
+            if rev > best_rev:
                 best_rev = rev
                 best_price = price
         return best_price

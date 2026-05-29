@@ -4,6 +4,7 @@ Configurable CLI runner for one-off Hotelling's Law experiments.
 Examples:
     python3 run_custom_experiment.py --layout line --rules normal --num-stores 3 --steps 100 --runs 30
     python3 run_custom_experiment.py --layout plane --rules pricing-only --num-stores 4 --steps 50 --runs 10
+    python3 run_custom_experiment.py --layout line --num-stores 3 --loyalty-strength 0.75 --loyalty-threshold 20 --output-prefix loyalty_example
 """
 
 import argparse
@@ -35,6 +36,8 @@ DEFAULT_PRICE = 10.0
 DEFAULT_STEP_SIZE = 1.0
 DEFAULT_PRICE_STEP = 1.0
 DEFAULT_BASE_SEED = 500
+DEFAULT_LOYALTY_STRENGTH = 0.0
+DEFAULT_LOYALTY_THRESHOLD = 10.0
 
 
 def _default_num_customers(layout: str, market_size: int) -> int:
@@ -56,9 +59,22 @@ def _default_prefix(
     num_stores: int,
     steps: int,
     runs: int,
+    loyalty_strength: float,
+    loyalty_threshold: float,
 ) -> str:
     rules_name = _safe_filename(rules.replace("-", "_"))
-    return f"custom_{layout}_stores{num_stores}_{rules_name}_steps{steps}_runs{runs}"
+    loyalty_suffix = ""
+    if (
+        loyalty_strength != DEFAULT_LOYALTY_STRENGTH
+        or loyalty_threshold != DEFAULT_LOYALTY_THRESHOLD
+    ):
+        loyalty_suffix = (
+            f"_loyalty{loyalty_strength:g}_threshold{loyalty_threshold:g}"
+        )
+    return (
+        f"custom_{layout}_stores{num_stores}_{rules_name}_steps{steps}_runs{runs}"
+        f"{loyalty_suffix}"
+    )
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -87,6 +103,18 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--step-size", type=float, default=DEFAULT_STEP_SIZE)
     parser.add_argument("--price-step", type=float, default=DEFAULT_PRICE_STEP)
     parser.add_argument(
+        "--loyalty-strength",
+        type=float,
+        default=DEFAULT_LOYALTY_STRENGTH,
+        help="Customer loyalty weight. Use 0.0 for baseline behaviour.",
+    )
+    parser.add_argument(
+        "--loyalty-threshold",
+        type=float,
+        default=DEFAULT_LOYALTY_THRESHOLD,
+        help="Switching margin used by the loyalty rule.",
+    )
+    parser.add_argument(
         "--output-prefix",
         default=None,
         help="Output filename prefix. If omitted, a prefix is generated from the config.",
@@ -105,6 +133,16 @@ def _positive_int(value: int, name: str) -> None:
         raise ValueError(f"{name} must be greater than 0")
 
 
+def _non_negative_float(value: float, name: str) -> None:
+    if value < 0:
+        raise ValueError(f"{name} must be greater than or equal to 0")
+
+
+def _positive_float(value: float, name: str) -> None:
+    if value <= 0:
+        raise ValueError(f"{name} must be greater than 0")
+
+
 def run_custom_experiment(argv: Optional[list[str]] = None) -> None:
     args = _build_parser().parse_args(argv)
 
@@ -114,6 +152,8 @@ def run_custom_experiment(argv: Optional[list[str]] = None) -> None:
     _positive_int(args.runs, "runs")
     if args.num_customers is not None:
         _positive_int(args.num_customers, "num-customers")
+    _non_negative_float(args.loyalty_strength, "loyalty-strength")
+    _positive_float(args.loyalty_threshold, "loyalty-threshold")
 
     num_customers = args.num_customers or _default_num_customers(
         args.layout,
@@ -125,6 +165,8 @@ def run_custom_experiment(argv: Optional[list[str]] = None) -> None:
         args.num_stores,
         args.steps,
         args.runs,
+        args.loyalty_strength,
+        args.loyalty_threshold,
     )
     output_prefix = _safe_filename(output_prefix)
     output_dir = args.output_dir
@@ -141,7 +183,8 @@ def run_custom_experiment(argv: Optional[list[str]] = None) -> None:
     parameter_value = (
         f"layout={args.layout};rules={args.rules};num_stores={args.num_stores};"
         f"steps={args.steps};runs={args.runs};market_size={args.market_size};"
-        f"num_customers={num_customers}"
+        f"num_customers={num_customers};loyalty_strength={args.loyalty_strength};"
+        f"loyalty_threshold={args.loyalty_threshold}"
     )
 
     print(f"[custom] layout:        {args.layout}")
@@ -151,6 +194,8 @@ def run_custom_experiment(argv: Optional[list[str]] = None) -> None:
     print(f"[custom] runs:          {args.runs}")
     print(f"[custom] market size:   {args.market_size}")
     print(f"[custom] customers:     {num_customers}")
+    print(f"[custom] loyalty str:   {args.loyalty_strength}")
+    print(f"[custom] loyalty thr:   {args.loyalty_threshold}")
     print(f"[custom] base seed:     {args.base_seed}")
     print("[custom] running experiment ...")
 
@@ -167,6 +212,8 @@ def run_custom_experiment(argv: Optional[list[str]] = None) -> None:
         price_step=args.price_step,
         layout=args.layout,
         rules=args.rules,
+        loyalty_strength=args.loyalty_strength,
+        loyalty_threshold=args.loyalty_threshold,
     )
 
     raw_rows = experiment.run()

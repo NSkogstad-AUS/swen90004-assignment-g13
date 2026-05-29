@@ -15,6 +15,7 @@ SUMMARY_METRICS: List[str] = [
     "store_position",
     "store_profit",
     "store_market_share",
+    "market_share_variation",
     "distance_from_centre",
     "average_distance_to_other_stores",
 ]
@@ -55,6 +56,11 @@ def per_run_averages(rows: List[Dict], final_tick: int) -> Dict[int, Dict[str, f
     for run_id, run_rows in grouped.items():
         run_avg: Dict[str, float] = {}
         for metric in SUMMARY_METRICS:
+            if metric == "market_share_variation":
+                market_shares = [float(r["store_market_share"]) for r in run_rows]
+                run_avg[metric] = stdev(market_shares) if len(market_shares) > 1 else 0.0
+                continue
+
             values = [float(r[metric]) for r in run_rows]
             run_avg[metric] = mean(values) if values else 0.0
         averages[run_id] = run_avg
